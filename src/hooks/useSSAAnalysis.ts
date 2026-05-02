@@ -39,7 +39,6 @@ function calculateMatchScore(pointText: string, speechText: string): {
   const pointNumbers = extractNumbers(pointText);
   const speechNumbers = extractNumbers(speechText);
   
-  const pointSet = new Set(pointTerms);
   const speechSet = new Set(speechTerms);
   
   const matchedKeywords: string[] = [];
