@@ -303,13 +303,7 @@ function App() {
             interimText={interimText}
             onStart={startListening}
             onStop={stopListening}
-<<<<<<< Updated upstream
             onFinish={handleShowReport}
-=======
-            onClear={clearSegments}
-            onComplete={handleShowReport}
-            onShowReport={handleShowReport}
->>>>>>> Stashed changes
             isSupported={isSupported}
             error={error}
             alignments={alignments}
