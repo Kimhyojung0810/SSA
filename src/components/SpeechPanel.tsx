@@ -227,8 +227,8 @@ export function SpeechPanel({
           <>
             {segments.map((segment) => {
               const matches = getSegmentMatches(segment.id);
-              const segmentSlide = slides.find(s => s.id === segment.slideId);
-              const slideNum = segmentSlide?.number ?? '?';
+              const segmentSlide = slides.find((s) => s.id === segment.slideId);
+              const slideNum = segmentSlide?.number ?? "?";
               return (
                 <div
                   key={segment.id}
@@ -238,7 +238,9 @@ export function SpeechPanel({
                     <span className="text-xs text-gh-text-muted font-mono">
                       {formatTime(segment.timestamp)}
                     </span>
-                    <span className="text-xs text-gh-accent font-bold">슬라이드 {slideNum}</span>
+                    <span className="text-xs text-gh-accent font-bold">
+                      슬라이드 {slideNum}
+                    </span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-gh-text text-sm leading-relaxed">
@@ -275,8 +277,42 @@ export function SpeechPanel({
         )}
       </div>
 
-      {!isListening && (
-        <div className="p-4 border-t border-gh-border bg-gh-bg">
+      {/* Button area */}
+      <div className="p-4 border-t border-gh-border bg-gh-bg space-y-2">
+        {isListening ? (
+          <>
+            <button
+              type="button"
+              onClick={onStop}
+              className="w-full py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 bg-gh-red text-white hover:bg-gh-red/90 transition-all"
+            >
+              <MicOff className="w-5 h-5" />
+              녹음 중지
+            </button>
+          </>
+        ) : hasRecorded ? (
+          <>
+            <div className="flex gap-2 mb-4">
+              <button
+                type="button"
+                onClick={onStart}
+                disabled={!isSupported}
+                className="flex-1 py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 border border-gh-border bg-gh-bg-secondary text-gh-text hover:border-gh-accent/50 hover:text-gh-accent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Mic className="w-4 h-4" />
+                발표 재개
+              </button>
+              <button
+                type="button"
+                onClick={onComplete}
+                disabled={!onComplete}
+                className="flex-1 py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 bg-gh-green text-white hover:bg-gh-green/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                발표 완료
+              </button>
+            </div>
+          </>
+        ) : (
           <button
             type="button"
             onClick={onStart}
