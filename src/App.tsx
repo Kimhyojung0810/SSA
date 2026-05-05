@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   BarChart3,
   ChevronLeft,
@@ -20,14 +20,13 @@ import { useSSAAnalysis } from './hooks/useSSAAnalysis';
 import { enrichSlides } from './lib/enrichSlides';
 import {
   clearPresentationDraft,
-  loadPresentationDraft,
   savePresentationDraft,
 } from './lib/presentationStorage';
 import type { Slide, AnalysisReport as ReportType, PresentationContext, SlideTimingRecord } from './types';
 
 const DEFAULT_CONTEXT: PresentationContext = {
-  type: 'pitch',
-  audience: 'investors',
+  type: '투자 피치',
+  audience: '투자자',
   timeLimitMinutes: 10,
 };
 
@@ -45,12 +44,11 @@ const workflowSteps: Array<{
 ];
 
 function App() {
-  const draft = useMemo(() => loadPresentationDraft(), []);
-  const [slides, setSlides] = useState<Slide[]>(() => draft?.slides || []);
-  const [currentSlideIndex, setCurrentSlideIndex] = useState(() => draft?.currentSlideIndex || 0);
+  const [slides, setSlides] = useState<Slide[]>([]);
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [report, setReport] = useState<ReportType | null>(null);
   const [timingRecords, setTimingRecords] = useState<SlideTimingRecord[]>([]);
-  const [workflowStep, setWorkflowStep] = useState<WorkflowStep>(() => draft?.slides.length ? 'review' : 'upload');
+  const [workflowStep, setWorkflowStep] = useState<WorkflowStep>('upload');
   const [context, setContext] = useState<PresentationContext>(DEFAULT_CONTEXT);
   const [isEnriching, setIsEnriching] = useState(false);
   const [showQA, setShowQA] = useState(false);
@@ -68,6 +66,7 @@ function App() {
     startListening,
     stopListening,
     clearSegments,
+    setCurrentSlideId,
   } = useSpeechRecognition();
 
   const {
@@ -83,6 +82,11 @@ function App() {
       updateAlignments(segments);
     }
   }, [segments, updateAlignments]);
+
+  useEffect(() => {
+    const currentSlide = slides[selectedSlideIndex];
+    setCurrentSlideId(currentSlide?.id);
+  }, [selectedSlideIndex, slides, setCurrentSlideId]);
 
   useEffect(() => {
     if (slides.length > 0) {
@@ -226,7 +230,7 @@ function App() {
 
     if (workflowStep === 'upload') {
       return (
-        <div className="mx-auto max-w-2xl py-8">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <ContextForm context={context} onChange={setContext} />
           <SlideUploader
             variant="upload"
@@ -242,7 +246,7 @@ function App() {
       return (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-1">
-            <ContextForm context={context} onChange={setContext} />
+            <ContextForm context={context} onChange={setContext} compact />
             {isEnriching && (
               <p className="text-xs text-gh-text-muted mt-2 px-1">
                 AI가 슬라이드를 분석 중입니다...
