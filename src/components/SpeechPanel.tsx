@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { CheckCircle2, Mic, MicOff, Square, Volume2 } from 'lucide-react';
+import { CheckCircle2, Mic, Square, Volume2 } from 'lucide-react';
 import type { AlignmentResult, Slide, SpeechSegment } from '../types';
 
 interface SpeechPanelProps {
@@ -32,7 +32,7 @@ export function SpeechPanel({
   timeLimitMinutes = 10,
 }: SpeechPanelProps) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (isListening) {
