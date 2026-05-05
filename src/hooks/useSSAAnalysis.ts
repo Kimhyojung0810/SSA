@@ -77,16 +77,19 @@ export function useSSAAnalysis(slides: Slide[]) {
   const [isEvaluating, setIsEvaluating] = useState(false);
 
   const analyzeAlignment = useCallback((segments: SpeechSegment[]): AlignmentResult[] => {
-    const allSpeechText = segments.map(s => s.text).join(' ');
     const results: AlignmentResult[] = [];
 
     for (const slide of slides) {
+      const slideSegments = segments.filter(s => s.slideId === slide.id);
+      const otherSegments = segments.filter(s => s.slideId !== slide.id);
+      const slideSpeechText = slideSegments.map(s => s.text).join(' ');
+
       for (const point of slide.points) {
         let bestScore = 0;
         let bestSegmentId: string | undefined;
         let hasNumberMatch = false;
 
-        for (const segment of segments) {
+        for (const segment of slideSegments) {
           const { score, numberMatch } = calculateMatchScore(point.text, segment.text);
           if (score > bestScore) {
             bestScore = score;
@@ -95,12 +98,22 @@ export function useSSAAnalysis(slides: Slide[]) {
           }
         }
 
-        const { score: fullScore, numberMatch: fullNumberMatch } = 
-          calculateMatchScore(point.text, allSpeechText);
+        const { score: slideFullScore, numberMatch: slideFullNumberMatch } = 
+          calculateMatchScore(point.text, slideSpeechText);
         
-        if (fullScore > bestScore) {
-          bestScore = fullScore;
-          hasNumberMatch = fullNumberMatch;
+        if (slideFullScore > bestScore) {
+          bestScore = slideFullScore;
+          hasNumberMatch = slideFullNumberMatch;
+        }
+
+        for (const segment of otherSegments) {
+          const { score, numberMatch } = calculateMatchScore(point.text, segment.text);
+          const adjustedScore = score * 0.7;
+          if (adjustedScore > bestScore) {
+            bestScore = adjustedScore;
+            bestSegmentId = segment.id;
+            hasNumberMatch = numberMatch;
+          }
         }
 
         let status: AlignmentResult['status'] = 'missed';

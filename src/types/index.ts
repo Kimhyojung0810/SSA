@@ -1,6 +1,6 @@
 export interface PresentationContext {
-  type: 'pitch' | 'lecture' | 'defense' | 'meeting';
-  audience: 'investors' | 'general' | 'experts' | 'academic';
+  type: string;
+  audience: string;
   timeLimitMinutes: number;
 }
 

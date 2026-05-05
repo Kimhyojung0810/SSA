@@ -254,7 +254,7 @@ export function SlideUploader({
 
   if (variant === 'upload') {
     return (
-      <div className="bg-gh-bg-secondary border border-gh-border rounded-xl p-6">
+      <div className="bg-gh-bg-secondary border border-gh-border rounded-xl p-6 h-full">
         <div className="mb-5">
           <div className="flex items-center gap-2 mb-2">
             <FileText className="w-5 h-5 text-gh-accent" />
@@ -275,91 +275,93 @@ export function SlideUploader({
   }
 
   return (
-    <div className="bg-gh-bg-secondary border border-gh-border rounded-lg p-4">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <FileText className="w-5 h-5 text-gh-text-muted" />
-          <span className="font-semibold text-gh-text">슬라이드 관리</span>
-        </div>
+    <div className="bg-gh-bg-secondary border border-gh-border rounded-lg p-3">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-sm font-semibold text-gh-text">슬라이드 ({currentSlides.length})</span>
         <button
           onClick={addSlide}
-          className="flex items-center gap-2 px-3 py-1.5 bg-gh-green text-white rounded text-sm hover:bg-gh-green/90 transition-colors"
+          className="p-1.5 bg-gh-green text-white rounded hover:bg-gh-green/90 transition-colors"
+          title="슬라이드 추가"
         >
           <Plus className="w-4 h-4" />
-          슬라이드 추가
         </button>
       </div>
 
-      <div className="space-y-2">
+      <div className="grid grid-cols-4 gap-2 max-h-[280px] overflow-y-auto">
         {currentSlides.map((slide, index) => {
           const isSelected = index === currentSlideIndex;
-          const isEditingThisSlide = editingSlide?.id === slide.id && isEditing;
           return (
             <div
               key={slide.id}
-              className="space-y-2"
+              onClick={() => {
+                onSlideSelect?.(index);
+                setIsEditing(false);
+                setEditingSlide(null);
+              }}
+              className={`relative cursor-pointer rounded overflow-hidden border-2 transition-all ${
+                isSelected
+                  ? 'border-gh-accent ring-2 ring-gh-accent/30'
+                  : 'border-gh-border hover:border-gh-accent/50'
+              }`}
             >
-              <div
-                className={`flex items-center justify-between gap-3 p-3 bg-gh-bg rounded border cursor-pointer transition-colors ${
-                  isSelected
-                    ? 'border-gh-accent ring-1 ring-gh-accent/40'
-                    : 'border-gh-border hover:border-gh-accent/50'
-                }`}
-                onClick={() => {
-                  onSlideSelect?.(index);
-                  setIsEditing(false);
-                  setEditingSlide(null);
-                }}
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="text-sm text-gh-text-muted">#{slide.number}</span>
-                  <span className="truncate text-gh-text">{slide.title}</span>
-                  <span className="shrink-0 text-xs text-gh-text-muted">
-                    ({slide.points.length} 포인트)
-                  </span>
+              {slide.imageUrl ? (
+                <img
+                  src={slide.imageUrl}
+                  alt={slide.title}
+                  className="w-full aspect-[16/9] object-cover bg-white"
+                />
+              ) : (
+                <div className="w-full aspect-[16/9] bg-gh-bg flex items-center justify-center">
+                  <FileText className="w-4 h-4 text-gh-text-muted" />
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSlideSelect?.(index);
-                      setEditingSlide(slide);
-                      setIsEditing(true);
-                    }}
-                    className={`flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-semibold transition-colors ${
-                      isEditingThisSlide
-                        ? 'bg-gh-accent text-white'
-                        : 'border border-gh-border bg-gh-bg-secondary text-gh-text hover:border-gh-accent/60 hover:text-gh-accent'
-                    }`}
-                    title="슬라이드 편집"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                    편집
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteSlide(slide.id);
-                    }}
-                    className="p-1 hover:bg-gh-red/20 rounded transition-colors"
-                    title="슬라이드 삭제"
-                  >
-                    <Trash2 className="w-4 h-4 text-gh-red" />
-                  </button>
-                </div>
+              )}
+              <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5">
+                <span className="text-[10px] text-white font-medium">{slide.number}</span>
               </div>
-              {isEditingThisSlide && renderEditingPanel()}
             </div>
           );
         })}
       </div>
 
       {currentSlides.length === 0 && !isLoading && (
-        <p className="text-center text-sm text-gh-text-muted py-4">
-          PDF를 업로드하거나 슬라이드를 직접 추가하세요
+        <p className="text-center text-xs text-gh-text-muted py-4">
+          PDF를 업로드하세요
         </p>
       )}
 
+      {currentSlides.length > 0 && currentSlides[currentSlideIndex] && (
+        <div className="mt-3 pt-3 border-t border-gh-border">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-gh-text-muted">
+              슬라이드 {currentSlides[currentSlideIndex].number}: {currentSlides[currentSlideIndex].title}
+            </span>
+            <div className="flex gap-1">
+              <button
+                onClick={() => {
+                  setEditingSlide(currentSlides[currentSlideIndex]);
+                  setIsEditing(true);
+                }}
+                className="p-1 border border-gh-border rounded hover:bg-gh-border transition-colors"
+                title="편집"
+              >
+                <Pencil className="w-3 h-3 text-gh-text-muted" />
+              </button>
+              <button
+                onClick={() => deleteSlide(currentSlides[currentSlideIndex].id)}
+                className="p-1 border border-gh-border rounded hover:bg-gh-red/20 transition-colors"
+                title="삭제"
+              >
+                <Trash2 className="w-3 h-3 text-gh-red" />
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-gh-text-muted">
+            {currentSlides[currentSlideIndex].points.length} 체크포인트
+          </p>
+        </div>
+      )}
+
+      {isEditing && editingSlide && renderEditingPanel()}
     </div>
   );
 }
