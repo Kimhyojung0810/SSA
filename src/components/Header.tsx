@@ -1,11 +1,6 @@
-import { Presentation, ExternalLink, BarChart3 } from 'lucide-react';
+import { Presentation, ExternalLink } from 'lucide-react';
 
-interface HeaderProps {
-  onShowReport: () => void;
-  hasSegments: boolean;
-}
-
-export function Header({ onShowReport, hasSegments }: HeaderProps) {
+export function Header() {
   return (
     <header className="bg-gh-bg-secondary border-b border-gh-border">
       <div className="max-w-7xl mx-auto px-4 py-3">
@@ -16,7 +11,7 @@ export function Header({ onShowReport, hasSegments }: HeaderProps) {
             </div>
             <div>
               <h1 className="text-lg font-bold text-gh-text flex items-center gap-2">
-                SSA Demo
+                척척발표
                 <span className="text-xs px-2 py-0.5 bg-gh-purple/20 text-gh-purple rounded-full">
                   v0.1
                 </span>
@@ -28,15 +23,6 @@ export function Header({ onShowReport, hasSegments }: HeaderProps) {
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={onShowReport}
-              disabled={!hasSegments}
-              className="flex items-center gap-2 px-4 py-2 bg-gh-accent text-white rounded-lg hover:bg-gh-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <BarChart3 className="w-4 h-4" />
-              분석 리포트
-            </button>
-            
             <a
               href="https://github.com"
               target="_blank"

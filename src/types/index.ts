@@ -9,6 +9,7 @@ export interface Slide {
   id: string;
   number: number;
   title: string;
+  content?: string;
   imageUrl?: string;
   points: SlidePoint[];
   coveragePercent: number;

@@ -1,4 +1,4 @@
-# Contributing to SSA Demo
+# Contributing to 척척발표
 
 Thank you for taking the time to contribute. This document covers everything you need to get started.
 
@@ -18,11 +18,11 @@ Thank you for taking the time to contribute. This document covers everything you
 
 ## Prerequisites
 
-| Tool | Version | Install |
-|------|---------|---------|
-| Node.js | ≥ 22 | [nodejs.org](https://nodejs.org) |
-| npm | ≥ 10 (bundled with Node.js) | — |
-| Git | any | [git-scm.com](https://git-scm.com) |
+| Tool    | Version                     | Install                            |
+| ------- | --------------------------- | ---------------------------------- |
+| Node.js | ≥ 22                        | [nodejs.org](https://nodejs.org)   |
+| npm     | ≥ 10 (bundled with Node.js) | —                                  |
+| Git     | any                         | [git-scm.com](https://git-scm.com) |
 
 **Recommended IDE:** VS Code with the [ESLint extension](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) and [Tailwind CSS IntelliSense](https://marketplace.visualstudio.com/items?itemName=bradlc.vscode-tailwindcss).
 
@@ -78,12 +78,12 @@ SSA/
 
 ### Available Scripts
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start local dev server with HMR |
-| `npm run build` | Type-check and build for production |
+| Command           | Description                          |
+| ----------------- | ------------------------------------ |
+| `npm run dev`     | Start local dev server with HMR      |
+| `npm run build`   | Type-check and build for production  |
 | `npm run preview` | Preview the production build locally |
-| `npm run lint` | Run ESLint across all source files |
+| `npm run lint`    | Run ESLint across all source files   |
 
 ### Before Opening a PR
 
@@ -143,16 +143,16 @@ Follow [Conventional Commits](https://www.conventionalcommits.org):
 <optional body>
 ```
 
-| Type | Use when |
-|------|----------|
-| `feat` | Adding a new feature |
-| `fix` | Fixing a bug |
+| Type       | Use when                                                |
+| ---------- | ------------------------------------------------------- |
+| `feat`     | Adding a new feature                                    |
+| `fix`      | Fixing a bug                                            |
 | `refactor` | Code change that neither fixes a bug nor adds a feature |
-| `test` | Adding or updating tests |
-| `docs` | Documentation only changes |
-| `chore` | Build process, dependency updates, tooling |
-| `perf` | Performance improvements |
-| `ci` | CI/CD configuration changes |
+| `test`     | Adding or updating tests                                |
+| `docs`     | Documentation only changes                              |
+| `chore`    | Build process, dependency updates, tooling              |
+| `perf`     | Performance improvements                                |
+| `ci`       | CI/CD configuration changes                             |
 
 Examples:
 
@@ -169,7 +169,7 @@ docs: update contributing guide
 1. **Branch** off `main` using a descriptive name: `feat/analysis-export`, `fix/slide-render`
 2. **Keep PRs focused** — one feature or fix per PR
 3. **Pass all checks** — `npm run lint` and `npm run build` must both succeed
-4. **Write a clear description** — explain the *why*, not just the *what*
+4. **Write a clear description** — explain the _why_, not just the _what_
 5. **Request a review** — at least one approval required before merging
 6. **Squash merge** into `main` to keep history clean
 

@@ -5,9 +5,20 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 // Set once at module load — safe to call multiple times (idempotent assignment).
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
+// CMap files map font character codes — required for Korean/CJK font rendering.
+// Standard font data covers the 14 built-in PDF fonts.
+const CDN = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}`;
+const CMAP_URL = `${CDN}/cmaps/`;
+const STANDARD_FONT_DATA_URL = `${CDN}/standard_fonts/`;
+
 export async function loadPdfFromFile(file: File): Promise<PDFDocumentProxy> {
   const data = await file.arrayBuffer();
-  return pdfjsLib.getDocument({ data }).promise;
+  return pdfjsLib.getDocument({
+    data,
+    cMapUrl: CMAP_URL,
+    cMapPacked: true,
+    standardFontDataUrl: STANDARD_FONT_DATA_URL,
+  }).promise;
 }
 
 export async function renderPageToUrl(page: PDFPageProxy, scale: number): Promise<string> {
@@ -19,18 +30,9 @@ export async function renderPageToUrl(page: PDFPageProxy, scale: number): Promis
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D context unavailable');
 
-  await page.render({ canvasContext: ctx, viewport }).promise;
+  await page.render({ canvas, canvasContext: ctx, viewport }).promise;
 
-  return new Promise<string>((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) { reject(new Error('Canvas toBlob returned null')); return; }
-        resolve(URL.createObjectURL(blob));
-      },
-      'image/jpeg',
-      0.85,
-    );
-  });
+  return canvas.toDataURL('image/jpeg', 0.85);
 }
 
 export async function extractPageText(page: PDFPageProxy): Promise<string> {

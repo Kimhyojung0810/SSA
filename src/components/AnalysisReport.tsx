@@ -17,9 +17,10 @@ import type { AnalysisReport as ReportType } from '../types';
 interface AnalysisReportProps {
   report: ReportType;
   onClose: () => void;
+  onRestart?: () => void;
 }
 
-export function AnalysisReport({ report, onClose }: AnalysisReportProps) {
+export function AnalysisReport({ report, onClose, onRestart }: AnalysisReportProps) {
   const [expandedSlides, setExpandedSlides] = useState<Set<string>>(new Set());
 
   const toggleSlide = (slideId: string) => {
@@ -255,12 +256,20 @@ export function AnalysisReport({ report, onClose }: AnalysisReportProps) {
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-gh-border bg-gh-bg">
+        <div className="px-6 py-4 border-t border-gh-border bg-gh-bg flex flex-col gap-3 sm:flex-row sm:justify-end">
+          {onRestart && (
+            <button
+              onClick={onRestart}
+              className="px-4 py-3 border border-gh-border text-gh-text-muted rounded-lg font-semibold hover:bg-gh-border hover:text-gh-text transition-colors"
+            >
+              처음부터 다시 시작
+            </button>
+          )}
           <button
             onClick={onClose}
-            className="w-full py-3 bg-gh-accent text-white rounded-lg font-semibold hover:bg-gh-accent/90 transition-colors"
+            className="px-4 py-3 bg-gh-accent text-white rounded-lg font-semibold hover:bg-gh-accent/90 transition-colors"
           >
-            확인
+            연습으로 돌아가기
           </button>
         </div>
       </div>

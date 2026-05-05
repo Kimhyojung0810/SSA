@@ -29,6 +29,7 @@ export function buildSlideFromPage({ pageNumber, imageUrl, text }: PageData): Sl
     id: `pdf-slide-${pageNumber}-${Date.now()}`,
     number: pageNumber,
     title,
+    content: text.trim(),
     imageUrl,
     points,
     coveragePercent: 0,
