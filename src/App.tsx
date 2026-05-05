@@ -52,7 +52,6 @@ function App() {
   const [workflowStep, setWorkflowStep] = useState<WorkflowStep>(() => draft?.slides.length ? 'review' : 'upload');
   const [context, setContext] = useState<PresentationContext>(DEFAULT_CONTEXT);
   const [isEnriching, setIsEnriching] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const selectedSlideIndex = slides.length > 0
     ? Math.min(currentSlideIndex, slides.length - 1)
     : 0;
@@ -113,7 +112,6 @@ function App() {
     savePresentationDraft(nextSlides, 0);
 
     if (file) {
-      setUploadedFile(file);
       setIsEnriching(true);
       enrichSlides(file, nextSlides, context, (enriched, idx) => {
         setSlides(prev => prev.map((s, i) => i === idx ? enriched : s));
