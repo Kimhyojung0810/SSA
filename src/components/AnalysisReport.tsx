@@ -59,8 +59,7 @@ export function AnalysisReport({ report, timingRecords = [], isEvaluating = fals
   const gradeInfo = getGrade(overallCoverage);
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-gh-bg-secondary border border-gh-border rounded-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="bg-gh-bg-secondary border border-gh-border rounded-xl w-full overflow-hidden flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gh-border bg-gh-bg">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-gh-accent/20 flex items-center justify-center">
@@ -342,7 +341,6 @@ export function AnalysisReport({ report, timingRecords = [], isEvaluating = fals
             연습으로 돌아가기
           </button>
         </div>
-      </div>
     </div>
   );
 }

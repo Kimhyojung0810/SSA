@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(pdftotext /Users/seokhoon/Downloads/Review_ReconceptualizingMetaverse_HyojungKim.pdf -)",
+      "Bash(python3 -c ' *)",
+      "Bash(grep -E '[A-Za-z]{4,}')",
+      "Bash(grep -v '^[A-Z]{2,}$')"
     ]
   }
 }
