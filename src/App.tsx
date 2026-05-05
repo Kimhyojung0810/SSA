@@ -301,14 +301,13 @@ function App() {
             interimText={interimText}
             onStart={startListening}
             onStop={stopListening}
-            onClear={clearSegments}
-            onComplete={() => setShowQA(true)}
-            onShowReport={handleShowReport}
+            onFinish={handleShowReport}
             isSupported={isSupported}
             error={error}
             alignments={alignments}
             slides={slides}
             currentSlideIndex={selectedSlideIndex}
+            timeLimitMinutes={context.timeLimitMinutes}
           />
         </div>
       </div>
@@ -358,7 +357,7 @@ function App() {
 
     if (workflowStep === 'practice') {
       return (
-        <div className="mt-6 flex items-center gap-3 rounded-xl border border-gh-border bg-gh-bg-secondary p-4">
+        <div className="mt-6 flex items-center justify-between rounded-xl border border-gh-border bg-gh-bg-secondary p-4">
           <button
             type="button"
             onClick={() => setWorkflowStep('review')}

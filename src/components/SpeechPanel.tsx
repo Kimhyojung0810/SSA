@@ -1,12 +1,6 @@
-import {
-  BarChart3,
-  CheckCircle2,
-  Mic,
-  MicOff,
-  Trash2,
-  Volume2,
-} from "lucide-react";
-import type { AlignmentResult, Slide, SpeechSegment } from "../types";
+import { useState, useEffect, useRef } from 'react';
+import { CheckCircle2, Mic, Square, Volume2 } from 'lucide-react';
+import type { AlignmentResult, Slide, SpeechSegment } from '../types';
 
 interface SpeechPanelProps {
   isListening: boolean;
@@ -14,14 +8,13 @@ interface SpeechPanelProps {
   interimText: string;
   onStart: () => void;
   onStop: () => void;
-  onClear: () => void;
-  onComplete?: () => void;
-  onShowReport?: () => void;
+  onFinish: () => void;
   isSupported: boolean;
   error: string | null;
   alignments?: AlignmentResult[];
   slides?: Slide[];
   currentSlideIndex?: number;
+  timeLimitMinutes?: number;
 }
 
 export function SpeechPanel({
@@ -30,23 +23,53 @@ export function SpeechPanel({
   interimText,
   onStart,
   onStop,
-  onClear,
-  onComplete,
-  onShowReport,
+  onFinish,
   isSupported,
   error,
   alignments = [],
   slides = [],
   currentSlideIndex = 0,
+  timeLimitMinutes = 10,
 }: SpeechPanelProps) {
-  const hasRecorded = segments.length > 0 && !isListening;
-  const canShowReport = segments.length > 0;
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (isListening) {
+      setElapsedSeconds(0);
+      timerRef.current = setInterval(() => {
+        setElapsedSeconds(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isListening]);
 
   const formatTime = (ms: number) => {
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${minutes}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const formatTimer = (secs: number) => {
+    const minutes = Math.floor(secs / 60);
+    const seconds = secs % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const targetSeconds = timeLimitMinutes * 60;
+  const isOverTime = elapsedSeconds > targetSeconds;
+
+  const handleFinish = () => {
+    onStop();
+    onFinish();
   };
 
   const totalPoints = slides.reduce((sum, s) => sum + s.points.length, 0);
@@ -89,7 +112,7 @@ export function SpeechPanel({
           <Volume2 className="w-4 h-4 text-gh-text-muted" />
           <span className="font-semibold text-gh-text">음성 기록</span>
           {isListening && (
-            <span className="flex items-center gap-1.5 px-2 py-0.5 bg-gh-red/20 text-gh-red rounded-full text-xs">
+            <span className="flex items-center gap-1.5 px-2 py-0.5 bg-gh-red/20 text-gh-red rounded-full text-xs font-medium">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gh-red opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-gh-red"></span>
@@ -98,22 +121,31 @@ export function SpeechPanel({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gh-text-muted">
-            {segments.length}개 인식
-          </span>
-          {segments.length > 0 && (
+        <span className="text-sm text-gh-text-muted">
+          {segments.length}개 인식
+        </span>
+      </div>
+
+      {isListening && (
+        <div className="px-4 py-3 border-b border-gh-border bg-gh-bg">
+          <div className="flex items-center justify-between">
+            <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${isOverTime ? 'bg-gh-red/20' : 'bg-gh-green/20'}`}>
+              <span className={`text-xl font-mono font-bold ${isOverTime ? 'text-gh-red' : 'text-gh-green'}`}>
+                {formatTimer(elapsedSeconds)}
+              </span>
+              <span className={`text-sm ${isOverTime ? 'text-gh-red/70' : 'text-gh-green/70'}`}>/ {formatTimer(targetSeconds)}</span>
+            </div>
             <button
               type="button"
-              onClick={onClear}
-              className="p-1.5 rounded border border-gh-border hover:bg-gh-border hover:text-gh-red transition-colors"
-              title="기록 삭제"
+              onClick={handleFinish}
+              className="flex items-center gap-2 px-4 py-2 bg-gh-red text-white rounded-lg text-sm font-semibold hover:bg-gh-red/90 transition-colors"
             >
-              <Trash2 className="w-4 h-4" />
+              <Square className="w-3.5 h-3.5 fill-current" />
+              발표 종료
             </button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {!isSupported && (
         <div className="p-4 bg-gh-yellow/10 border-b border-gh-yellow/30">
@@ -243,76 +275,24 @@ export function SpeechPanel({
         )}
       </div>
 
-      {/* Button area */}
-      <div className="p-4 border-t border-gh-border bg-gh-bg space-y-2">
-        {isListening ? (
-          <>
-            <button
-              type="button"
-              onClick={onStop}
-              className="w-full py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 bg-gh-red text-white hover:bg-gh-red/90 transition-all"
-            >
-              <MicOff className="w-5 h-5" />
-              녹음 중지
-            </button>
-            <button
-              type="button"
-              onClick={onShowReport}
-              disabled={!onShowReport || !canShowReport}
-              className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 border border-gh-accent/40 text-gh-accent hover:bg-gh-accent/10 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-            >
-              <BarChart3 className="w-4 h-4" />
-              분석 리포트 보기
-            </button>
-          </>
-        ) : hasRecorded ? (
-          <>
-            <div className="flex gap-2 mb-4">
-              <button
-                type="button"
-                onClick={onStart}
-                disabled={!isSupported}
-                className="flex-1 py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 border border-gh-border bg-gh-bg-secondary text-gh-text hover:border-gh-accent/50 hover:text-gh-accent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Mic className="w-4 h-4" />
-                발표 재개
-              </button>
-              <button
-                type="button"
-                onClick={onComplete}
-                disabled={!onComplete}
-                className="flex-1 py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 bg-gh-green text-white hover:bg-gh-green/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                발표 완료
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={onShowReport}
-              disabled={!onShowReport}
-              className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 bg-gh-accent text-white hover:bg-gh-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-            >
-              <BarChart3 className="w-4 h-4 gap-3" />
-              분석 리포트 보기
-            </button>
-          </>
-        ) : (
+      {!isListening && (
+        <div className="p-4 border-t border-gh-border bg-gh-bg">
           <button
             type="button"
             onClick={onStart}
             disabled={!isSupported}
-            className="w-full py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 bg-gh-green text-white hover:bg-gh-green/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-gh-green text-white hover:bg-gh-green/90"
           >
             <Mic className="w-5 h-5" />
             발표 시작
           </button>
-        )}
-        {isSupported && !isListening && (
-          <p className="text-center text-xs text-gh-text-muted">
-            Chrome 브라우저 + 마이크 권한 필요
-          </p>
-        )}
-      </div>
+          {isSupported && (
+            <p className="text-center text-xs text-gh-text-muted mt-2">
+              Chrome 브라우저 + 마이크 권한 필요
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
