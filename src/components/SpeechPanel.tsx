@@ -55,7 +55,7 @@ export function SpeechPanel({
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    return `${minutes}:${secs.toString().padStart(2, "0")}`;
   };
 
   const formatTimer = (secs: number) => {
@@ -73,26 +73,33 @@ export function SpeechPanel({
   };
 
   const totalPoints = slides.reduce((sum, s) => sum + s.points.length, 0);
-  const coveredCount = alignments.filter(a => a.status === 'covered').length;
-  const partialCount = alignments.filter(a => a.status === 'partial').length;
-  const coveragePercent = totalPoints > 0
-    ? Math.round(((coveredCount + partialCount * 0.5) / totalPoints) * 100)
-    : 0;
+  const coveredCount = alignments.filter((a) => a.status === "covered").length;
+  const partialCount = alignments.filter((a) => a.status === "partial").length;
+  const coveragePercent =
+    totalPoints > 0
+      ? Math.round(((coveredCount + partialCount * 0.5) / totalPoints) * 100)
+      : 0;
 
   const currentSlide = slides[currentSlideIndex];
   const currentSlideCovered = currentSlide
     ? alignments.filter(
-        a => a.slideId === currentSlide.id && (a.status === 'covered' || a.status === 'partial')
+        (a) =>
+          a.slideId === currentSlide.id &&
+          (a.status === "covered" || a.status === "partial"),
       ).length
     : 0;
   const currentSlideTotal = currentSlide?.points.length ?? 0;
 
   const getSegmentMatches = (segmentId: string) =>
     alignments
-      .filter(a => a.speechSegmentId === segmentId && (a.status === 'covered' || a.status === 'partial'))
-      .flatMap(a => {
+      .filter(
+        (a) =>
+          a.speechSegmentId === segmentId &&
+          (a.status === "covered" || a.status === "partial"),
+      )
+      .flatMap((a) => {
         for (const slide of slides) {
-          const point = slide.points.find(p => p.id === a.pointId);
+          const point = slide.points.find((p) => p.id === a.pointId);
           if (point) return [{ text: point.text, slideNumber: slide.number }];
         }
         return [];
@@ -157,28 +164,41 @@ export function SpeechPanel({
       {totalPoints > 0 && (
         <div className="px-4 py-3 border-b border-gh-border bg-gh-bg">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-semibold text-gh-text">실시간 분석</span>
-            <span className={`text-xs font-bold ${
-              coveragePercent >= 80 ? 'text-green-400' :
-              coveragePercent >= 50 ? 'text-yellow-400' :
-              coveragePercent > 0  ? 'text-gh-accent' : 'text-gh-text-muted'
-            }`}>
+            <span className="text-xs font-semibold text-gh-text">
+              실시간 분석
+            </span>
+            <span
+              className={`text-xs font-bold ${
+                coveragePercent >= 80
+                  ? "text-green-400"
+                  : coveragePercent >= 50
+                    ? "text-yellow-400"
+                    : coveragePercent > 0
+                      ? "text-gh-accent"
+                      : "text-gh-text-muted"
+              }`}
+            >
               {coveredCount + partialCount}/{totalPoints} 체크포인트
             </span>
           </div>
           <div className="h-1.5 bg-gh-border rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-500 ${
-                coveragePercent >= 80 ? 'bg-green-400' :
-                coveragePercent >= 50 ? 'bg-yellow-400' :
-                coveragePercent > 0  ? 'bg-gh-accent' : 'bg-gh-border'
+                coveragePercent >= 80
+                  ? "bg-green-400"
+                  : coveragePercent >= 50
+                    ? "bg-yellow-400"
+                    : coveragePercent > 0
+                      ? "bg-gh-accent"
+                      : "bg-gh-border"
               }`}
               style={{ width: `${coveragePercent}%` }}
             />
           </div>
           {currentSlide && currentSlideTotal > 0 && (
             <p className="text-xs text-gh-text-muted mt-1.5">
-              현재 슬라이드 #{currentSlide.number}: {currentSlideCovered}/{currentSlideTotal} 커버됨
+              현재 슬라이드 #{currentSlide.number}: {currentSlideCovered}/
+              {currentSlideTotal} 커버됨
             </p>
           )}
         </div>
@@ -187,16 +207,20 @@ export function SpeechPanel({
       <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[250px] max-h-[400px]">
         {segments.length === 0 && !interimText ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-8">
-            <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${isListening ? 'bg-gh-red/20' : 'bg-gh-border'}`}>
-              <Mic className={`w-8 h-8 ${isListening ? 'text-gh-red' : 'text-gh-text-muted'}`} />
+            <div
+              className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${isListening ? "bg-gh-red/20" : "bg-gh-border"}`}
+            >
+              <Mic
+                className={`w-8 h-8 ${isListening ? "text-gh-red" : "text-gh-text-muted"}`}
+              />
             </div>
             <p className="text-gh-text text-sm font-medium">
-              {isListening ? '말씀해 주세요...' : '발표를 시작하세요'}
+              {isListening ? "말씀해 주세요..." : "발표를 시작하세요"}
             </p>
             <p className="text-gh-text-muted text-xs mt-1">
-              {isListening 
-                ? '음성이 인식되면 여기에 표시됩니다' 
-                : '아래 버튼을 눌러 음성 녹음을 시작하세요'}
+              {isListening
+                ? "음성이 인식되면 여기에 표시됩니다"
+                : "아래 버튼을 눌러 음성 녹음을 시작하세요"}
             </p>
           </div>
         ) : (
@@ -217,7 +241,9 @@ export function SpeechPanel({
                     <span className="text-xs text-gh-accent font-bold">슬라이드 {slideNum}</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-gh-text text-sm leading-relaxed">{segment.text}</p>
+                    <p className="text-gh-text text-sm leading-relaxed">
+                      {segment.text}
+                    </p>
                     {matches.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
                         {matches.map((match, i) => (
@@ -226,7 +252,9 @@ export function SpeechPanel({
                             className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 bg-green-500/15 text-green-400 rounded border border-green-500/20"
                           >
                             <CheckCircle2 className="w-3 h-3 shrink-0" />
-                            <span className="truncate max-w-[140px]">{match.text}</span>
+                            <span className="truncate max-w-[140px]">
+                              {match.text}
+                            </span>
                           </span>
                         ))}
                       </div>
@@ -238,7 +266,9 @@ export function SpeechPanel({
             {interimText && (
               <div className="flex gap-3 p-3 bg-gh-accent/10 rounded-lg border border-gh-accent/30 animate-pulse">
                 <span className="text-xs text-gh-accent font-mono">...</span>
-                <p className="text-gh-accent text-sm flex-1 italic">{interimText}</p>
+                <p className="text-gh-accent text-sm flex-1 italic">
+                  {interimText}
+                </p>
               </div>
             )}
           </>
