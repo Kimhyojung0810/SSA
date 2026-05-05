@@ -155,8 +155,10 @@ export function SpeechPanel({
           </div>
         ) : (
           <>
-            {segments.map((segment, idx) => {
+            {segments.map((segment) => {
               const matches = getSegmentMatches(segment.id);
+              const segmentSlide = slides.find(s => s.id === segment.slideId);
+              const slideNum = segmentSlide?.number ?? '?';
               return (
                 <div
                   key={segment.id}
@@ -166,7 +168,7 @@ export function SpeechPanel({
                     <span className="text-xs text-gh-text-muted font-mono">
                       {formatTime(segment.timestamp)}
                     </span>
-                    <span className="text-xs text-gh-accent">#{idx + 1}</span>
+                    <span className="text-xs text-gh-accent font-bold">슬라이드 {slideNum}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-gh-text text-sm leading-relaxed">{segment.text}</p>
