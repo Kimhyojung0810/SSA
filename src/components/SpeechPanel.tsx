@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { CheckCircle2, Mic, Square, Volume2 } from 'lucide-react';
+import { CheckCircle2, Mic, MicOff, Square, Volume2 } from 'lucide-react';
 import type { AlignmentResult, Slide, SpeechSegment } from '../types';
 
 interface SpeechPanelProps {
@@ -32,13 +32,18 @@ export function SpeechPanel({
   timeLimitMinutes = 10,
 }: SpeechPanelProps) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [lastRunSeconds, setLastRunSeconds] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const elapsedRef = useRef(0);
 
   useEffect(() => {
     if (isListening) {
-      setElapsedSeconds(0);
       timerRef.current = setInterval(() => {
-        setElapsedSeconds(prev => prev + 1);
+        setElapsedSeconds(prev => {
+          const next = prev + 1;
+          elapsedRef.current = next;
+          return next;
+        });
       }, 1000);
     } else {
       if (timerRef.current) {
@@ -55,7 +60,7 @@ export function SpeechPanel({
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${minutes}:${secs.toString().padStart(2, "0")}`;
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
   const formatTimer = (secs: number) => {
@@ -66,15 +71,29 @@ export function SpeechPanel({
 
   const targetSeconds = timeLimitMinutes * 60;
   const isOverTime = elapsedSeconds > targetSeconds;
+  const wasOverTime = lastRunSeconds > targetSeconds;
+  const hasRecorded = segments.length > 0 && !isListening;
+
+  const handleStart = () => {
+    setElapsedSeconds(0);
+    setLastRunSeconds(0);
+    elapsedRef.current = 0;
+    onStart();
+  };
+
+  const handleStop = () => {
+    setLastRunSeconds(elapsedRef.current);
+    onStop();
+  };
 
   const handleFinish = () => {
-    onStop();
+    handleStop();
     onFinish();
   };
 
   const totalPoints = slides.reduce((sum, s) => sum + s.points.length, 0);
-  const coveredCount = alignments.filter((a) => a.status === "covered").length;
-  const partialCount = alignments.filter((a) => a.status === "partial").length;
+  const coveredCount = alignments.filter((a) => a.status === 'covered').length;
+  const partialCount = alignments.filter((a) => a.status === 'partial').length;
   const coveragePercent =
     totalPoints > 0
       ? Math.round(((coveredCount + partialCount * 0.5) / totalPoints) * 100)
@@ -85,7 +104,7 @@ export function SpeechPanel({
     ? alignments.filter(
         (a) =>
           a.slideId === currentSlide.id &&
-          (a.status === "covered" || a.status === "partial"),
+          (a.status === 'covered' || a.status === 'partial'),
       ).length
     : 0;
   const currentSlideTotal = currentSlide?.points.length ?? 0;
@@ -95,7 +114,7 @@ export function SpeechPanel({
       .filter(
         (a) =>
           a.speechSegmentId === segmentId &&
-          (a.status === "covered" || a.status === "partial"),
+          (a.status === 'covered' || a.status === 'partial'),
       )
       .flatMap((a) => {
         for (const slide of slides) {
@@ -107,6 +126,7 @@ export function SpeechPanel({
 
   return (
     <div className="bg-gh-bg-secondary border border-gh-border rounded-lg overflow-hidden h-full flex flex-col">
+      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gh-border">
         <div className="flex items-center gap-2">
           <Volume2 className="w-4 h-4 text-gh-text-muted" />
@@ -121,11 +141,10 @@ export function SpeechPanel({
             </span>
           )}
         </div>
-        <span className="text-sm text-gh-text-muted">
-          {segments.length}개 인식
-        </span>
+        <span className="text-sm text-gh-text-muted">{segments.length}개 인식</span>
       </div>
 
+      {/* Timer bar — visible only while recording */}
       {isListening && (
         <div className="px-4 py-3 border-b border-gh-border bg-gh-bg">
           <div className="flex items-center justify-between">
@@ -133,7 +152,9 @@ export function SpeechPanel({
               <span className={`text-xl font-mono font-bold ${isOverTime ? 'text-gh-red' : 'text-gh-green'}`}>
                 {formatTimer(elapsedSeconds)}
               </span>
-              <span className={`text-sm ${isOverTime ? 'text-gh-red/70' : 'text-gh-green/70'}`}>/ {formatTimer(targetSeconds)}</span>
+              <span className={`text-sm ${isOverTime ? 'text-gh-red/70' : 'text-gh-green/70'}`}>
+                / {formatTimer(targetSeconds)}
+              </span>
             </div>
             <button
               type="button"
@@ -147,6 +168,25 @@ export function SpeechPanel({
         </div>
       )}
 
+      {!isListening && lastRunSeconds > 0 && (
+        <div className="px-4 py-3 border-b border-gh-border bg-gh-bg">
+          <div className={`flex items-center justify-between rounded-lg px-4 py-3 ${
+            wasOverTime ? 'bg-gh-red/15 border border-gh-red/30' : 'bg-gh-green/15 border border-gh-green/30'
+          }`}>
+            <div>
+              <p className="text-xs font-semibold text-gh-text-muted">마지막 발표 시간</p>
+              <p className={`text-2xl font-mono font-bold ${wasOverTime ? 'text-gh-red' : 'text-gh-green'}`}>
+                {formatTimer(lastRunSeconds)}
+              </p>
+            </div>
+            <p className={`text-xs ${wasOverTime ? 'text-gh-red' : 'text-gh-green'}`}>
+              목표 {formatTimer(targetSeconds)}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Browser warning */}
       {!isSupported && (
         <div className="p-4 bg-gh-yellow/10 border-b border-gh-yellow/30">
           <p className="text-gh-yellow text-sm">
@@ -155,27 +195,27 @@ export function SpeechPanel({
         </div>
       )}
 
+      {/* Error */}
       {error && (
         <div className="p-4 bg-gh-red/10 border-b border-gh-red/30">
           <p className="text-gh-red text-sm">{error}</p>
         </div>
       )}
 
+      {/* Coverage progress */}
       {totalPoints > 0 && (
         <div className="px-4 py-3 border-b border-gh-border bg-gh-bg">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-semibold text-gh-text">
-              실시간 분석
-            </span>
+            <span className="text-xs font-semibold text-gh-text">실시간 분석</span>
             <span
               className={`text-xs font-bold ${
                 coveragePercent >= 80
-                  ? "text-green-400"
+                  ? 'text-green-400'
                   : coveragePercent >= 50
-                    ? "text-yellow-400"
+                    ? 'text-yellow-400'
                     : coveragePercent > 0
-                      ? "text-gh-accent"
-                      : "text-gh-text-muted"
+                      ? 'text-gh-accent'
+                      : 'text-gh-text-muted'
               }`}
             >
               {coveredCount + partialCount}/{totalPoints} 체크포인트
@@ -185,49 +225,51 @@ export function SpeechPanel({
             <div
               className={`h-full rounded-full transition-all duration-500 ${
                 coveragePercent >= 80
-                  ? "bg-green-400"
+                  ? 'bg-green-400'
                   : coveragePercent >= 50
-                    ? "bg-yellow-400"
+                    ? 'bg-yellow-400'
                     : coveragePercent > 0
-                      ? "bg-gh-accent"
-                      : "bg-gh-border"
+                      ? 'bg-gh-accent'
+                      : 'bg-gh-border'
               }`}
               style={{ width: `${coveragePercent}%` }}
             />
           </div>
           {currentSlide && currentSlideTotal > 0 && (
             <p className="text-xs text-gh-text-muted mt-1.5">
-              현재 슬라이드 #{currentSlide.number}: {currentSlideCovered}/
-              {currentSlideTotal} 커버됨
+              현재 슬라이드 #{currentSlide.number}: {currentSlideCovered}/{currentSlideTotal} 커버됨
             </p>
           )}
         </div>
       )}
 
+      {/* Segments list */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[250px] max-h-[400px]">
         {segments.length === 0 && !interimText ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-8">
             <div
-              className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${isListening ? "bg-gh-red/20" : "bg-gh-border"}`}
+              className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${
+                isListening ? 'bg-gh-red/20' : 'bg-gh-border'
+              }`}
             >
               <Mic
-                className={`w-8 h-8 ${isListening ? "text-gh-red" : "text-gh-text-muted"}`}
+                className={`w-8 h-8 ${isListening ? 'text-gh-red' : 'text-gh-text-muted'}`}
               />
             </div>
             <p className="text-gh-text text-sm font-medium">
-              {isListening ? "말씀해 주세요..." : "발표를 시작하세요"}
+              {isListening ? '말씀해 주세요...' : '발표를 시작하세요'}
             </p>
             <p className="text-gh-text-muted text-xs mt-1">
               {isListening
-                ? "음성이 인식되면 여기에 표시됩니다"
-                : "아래 버튼을 눌러 음성 녹음을 시작하세요"}
+                ? '음성이 인식되면 여기에 표시됩니다'
+                : '아래 버튼을 눌러 음성 녹음을 시작하세요'}
             </p>
           </div>
         ) : (
           <>
             {segments.map((segment) => {
               const matches = getSegmentMatches(segment.id);
-              const segmentSlide = slides.find(s => s.id === segment.slideId);
+              const segmentSlide = slides.find((s) => s.id === segment.slideId);
               const slideNum = segmentSlide?.number ?? '?';
               return (
                 <div
@@ -238,12 +280,12 @@ export function SpeechPanel({
                     <span className="text-xs text-gh-text-muted font-mono">
                       {formatTime(segment.timestamp)}
                     </span>
-                    <span className="text-xs text-gh-accent font-bold">슬라이드 {slideNum}</span>
+                    <span className="text-xs text-gh-accent font-bold">
+                      슬라이드 {slideNum}
+                    </span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-gh-text text-sm leading-relaxed">
-                      {segment.text}
-                    </p>
+                    <p className="text-gh-text text-sm leading-relaxed">{segment.text}</p>
                     {matches.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
                         {matches.map((match, i) => (
@@ -252,9 +294,7 @@ export function SpeechPanel({
                             className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 bg-green-500/15 text-green-400 rounded border border-green-500/20"
                           >
                             <CheckCircle2 className="w-3 h-3 shrink-0" />
-                            <span className="truncate max-w-[140px]">
-                              {match.text}
-                            </span>
+                            <span className="truncate max-w-[140px]">{match.text}</span>
                           </span>
                         ))}
                       </div>
@@ -266,33 +306,64 @@ export function SpeechPanel({
             {interimText && (
               <div className="flex gap-3 p-3 bg-gh-accent/10 rounded-lg border border-gh-accent/30 animate-pulse">
                 <span className="text-xs text-gh-accent font-mono">...</span>
-                <p className="text-gh-accent text-sm flex-1 italic">
-                  {interimText}
-                </p>
+                <p className="text-gh-accent text-sm flex-1 italic">{interimText}</p>
               </div>
             )}
           </>
         )}
       </div>
 
-      {!isListening && (
-        <div className="p-4 border-t border-gh-border bg-gh-bg">
+      {/* Button area */}
+      <div className="p-4 border-t border-gh-border bg-gh-bg space-y-2">
+        {isListening ? (
           <button
             type="button"
-            onClick={onStart}
-            disabled={!isSupported}
-            className="w-full py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-gh-green text-white hover:bg-gh-green/90"
+            onClick={handleStop}
+            className="w-full py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 bg-gh-red text-white hover:bg-gh-red/90 transition-all"
           >
-            <Mic className="w-5 h-5" />
-            발표 시작
+            <MicOff className="w-5 h-5" />
+            녹음 중지
           </button>
-          {isSupported && (
-            <p className="text-center text-xs text-gh-text-muted mt-2">
-              Chrome 브라우저 + 마이크 권한 필요
-            </p>
-          )}
-        </div>
-      )}
+        ) : hasRecorded ? (
+          <>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleStart}
+                disabled={!isSupported}
+                className="flex-1 py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 border border-gh-border bg-gh-bg-secondary text-gh-text hover:border-gh-accent/50 hover:text-gh-accent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Mic className="w-4 h-4" />
+                발표 재개
+              </button>
+              <button
+                type="button"
+                onClick={onFinish}
+                className="flex-1 py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 bg-gh-green text-white hover:bg-gh-green/90 transition-all"
+              >
+                발표 완료
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={handleStart}
+              disabled={!isSupported}
+              className="w-full py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-gh-green text-white hover:bg-gh-green/90"
+            >
+              <Mic className="w-5 h-5" />
+              발표하기
+            </button>
+            {!isSupported && (
+              <p className="text-center text-xs text-gh-text-muted">
+                Chrome 브라우저 + 마이크 권한 필요
+              </p>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

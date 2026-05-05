@@ -14,7 +14,7 @@ import { SpeechPanel } from './components/SpeechPanel';
 import { AnalysisReport } from './components/AnalysisReport';
 import { SlideUploader } from './components/SlideUploader';
 import { ContextForm } from './components/ContextForm';
-import { QAPanel } from './components/QAPanel';
+import { QAInline } from './components/QAPanel';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import { useSSAAnalysis } from './hooks/useSSAAnalysis';
 import { enrichSlides } from './lib/enrichSlides';
@@ -51,7 +51,6 @@ function App() {
   const [workflowStep, setWorkflowStep] = useState<WorkflowStep>('upload');
   const [context, setContext] = useState<PresentationContext>(DEFAULT_CONTEXT);
   const [isEnriching, setIsEnriching] = useState(false);
-  const [showQA, setShowQA] = useState(false);
   const selectedSlideIndex = slides.length > 0
     ? Math.min(currentSlideIndex, slides.length - 1)
     : 0;
@@ -218,13 +217,16 @@ function App() {
   const renderContent = () => {
     if (workflowStep === 'report' && report) {
       return (
-        <AnalysisReport
-          report={report}
-          timingRecords={timingRecords}
-          isEvaluating={isEvaluating}
-          onClose={() => setWorkflowStep('practice')}
-          onRestart={handleRestart}
-        />
+        <div className="space-y-6">
+          <QAInline />
+          <AnalysisReport
+            report={report}
+            timingRecords={timingRecords}
+            isEvaluating={isEvaluating}
+            onClose={() => setWorkflowStep('practice')}
+            onRestart={handleRestart}
+          />
+        </div>
       );
     }
 
@@ -438,7 +440,6 @@ function App() {
         </footer>
       </div>
 
-      {showQA && <QAPanel onClose={() => setShowQA(false)} />}
     </div>
   );
 }
