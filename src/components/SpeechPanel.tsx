@@ -1,4 +1,5 @@
-import { CheckCircle2, Mic, MicOff, Trash2, Volume2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { CheckCircle2, Mic, MicOff, Square, Volume2 } from 'lucide-react';
 import type { AlignmentResult, Slide, SpeechSegment } from '../types';
 
 interface SpeechPanelProps {
@@ -7,12 +8,13 @@ interface SpeechPanelProps {
   interimText: string;
   onStart: () => void;
   onStop: () => void;
-  onClear: () => void;
+  onFinish: () => void;
   isSupported: boolean;
   error: string | null;
   alignments?: AlignmentResult[];
   slides?: Slide[];
   currentSlideIndex?: number;
+  timeLimitMinutes?: number;
 }
 
 export function SpeechPanel({
@@ -21,18 +23,53 @@ export function SpeechPanel({
   interimText,
   onStart,
   onStop,
-  onClear,
+  onFinish,
   isSupported,
   error,
   alignments = [],
   slides = [],
   currentSlideIndex = 0,
+  timeLimitMinutes = 10,
 }: SpeechPanelProps) {
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (isListening) {
+      setElapsedSeconds(0);
+      timerRef.current = setInterval(() => {
+        setElapsedSeconds(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isListening]);
+
   const formatTime = (ms: number) => {
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatTimer = (secs: number) => {
+    const minutes = Math.floor(secs / 60);
+    const seconds = secs % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const targetSeconds = timeLimitMinutes * 60;
+  const isOverTime = elapsedSeconds > targetSeconds;
+
+  const handleFinish = () => {
+    onStop();
+    onFinish();
   };
 
   const totalPoints = slides.reduce((sum, s) => sum + s.points.length, 0);
@@ -68,7 +105,7 @@ export function SpeechPanel({
           <Volume2 className="w-4 h-4 text-gh-text-muted" />
           <span className="font-semibold text-gh-text">음성 기록</span>
           {isListening && (
-            <span className="flex items-center gap-1.5 px-2 py-0.5 bg-gh-red/20 text-gh-red rounded-full text-xs">
+            <span className="flex items-center gap-1.5 px-2 py-0.5 bg-gh-red/20 text-gh-red rounded-full text-xs font-medium">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gh-red opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-gh-red"></span>
@@ -77,22 +114,31 @@ export function SpeechPanel({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gh-text-muted">
-            {segments.length}개 인식
-          </span>
-          {segments.length > 0 && (
+        <span className="text-sm text-gh-text-muted">
+          {segments.length}개 인식
+        </span>
+      </div>
+
+      {isListening && (
+        <div className="px-4 py-3 border-b border-gh-border bg-gh-bg">
+          <div className="flex items-center justify-between">
+            <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${isOverTime ? 'bg-gh-red/20' : 'bg-gh-green/20'}`}>
+              <span className={`text-xl font-mono font-bold ${isOverTime ? 'text-gh-red' : 'text-gh-green'}`}>
+                {formatTimer(elapsedSeconds)}
+              </span>
+              <span className={`text-sm ${isOverTime ? 'text-gh-red/70' : 'text-gh-green/70'}`}>/ {formatTimer(targetSeconds)}</span>
+            </div>
             <button
               type="button"
-              onClick={onClear}
-              className="p-1.5 rounded border border-gh-border hover:bg-gh-border hover:text-gh-red transition-colors"
-              title="기록 삭제"
+              onClick={handleFinish}
+              className="flex items-center gap-2 px-4 py-2 bg-gh-red text-white rounded-lg text-sm font-semibold hover:bg-gh-red/90 transition-colors"
             >
-              <Trash2 className="w-4 h-4" />
+              <Square className="w-3.5 h-3.5 fill-current" />
+              발표 종료
             </button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {!isSupported && (
         <div className="p-4 bg-gh-yellow/10 border-b border-gh-yellow/30">
@@ -199,35 +245,24 @@ export function SpeechPanel({
         )}
       </div>
 
-      <div className="p-4 border-t border-gh-border bg-gh-bg">
-        <button
-          type="button"
-          onClick={isListening ? onStop : onStart}
-          disabled={!isSupported}
-          className={`w-full py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-            isListening
-              ? 'bg-gh-red text-white hover:bg-gh-red/90'
-              : 'bg-gh-green text-white hover:bg-gh-green/90'
-          }`}
-        >
-          {isListening ? (
-            <>
-              <MicOff className="w-5 h-5" />
-              녹음 중지
-            </>
-          ) : (
-            <>
-              <Mic className="w-5 h-5" />
-              발표 시작
-            </>
+      {!isListening && (
+        <div className="p-4 border-t border-gh-border bg-gh-bg">
+          <button
+            type="button"
+            onClick={onStart}
+            disabled={!isSupported}
+            className="w-full py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-gh-green text-white hover:bg-gh-green/90"
+          >
+            <Mic className="w-5 h-5" />
+            발표 시작
+          </button>
+          {isSupported && (
+            <p className="text-center text-xs text-gh-text-muted mt-2">
+              Chrome 브라우저 + 마이크 권한 필요
+            </p>
           )}
-        </button>
-        {isSupported && (
-          <p className="text-center text-xs text-gh-text-muted mt-2">
-            Chrome 브라우저 + 마이크 권한 필요
-          </p>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

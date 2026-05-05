@@ -287,12 +287,13 @@ function App() {
             interimText={interimText}
             onStart={startListening}
             onStop={stopListening}
-            onClear={clearSegments}
+            onFinish={handleShowReport}
             isSupported={isSupported}
             error={error}
             alignments={alignments}
             slides={slides}
             currentSlideIndex={selectedSlideIndex}
+            timeLimitMinutes={context.timeLimitMinutes}
           />
         </div>
       </div>
@@ -342,33 +343,22 @@ function App() {
 
     if (workflowStep === 'practice') {
       return (
-        <div className="mt-6 flex flex-col gap-3 rounded-xl border border-gh-border bg-gh-bg-secondary p-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => setWorkflowStep('review')}
-              className="flex items-center gap-2 rounded-lg border border-gh-border px-4 py-2 text-sm text-gh-text-muted transition-colors hover:bg-gh-border hover:text-gh-text"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              내용 다시 확인
-            </button>
-            <button
-              type="button"
-              onClick={handleRestart}
-              className="flex items-center gap-2 rounded-lg border border-gh-border px-4 py-2 text-sm text-gh-text-muted transition-colors hover:bg-gh-border hover:text-gh-text"
-            >
-              <RotateCcw className="h-4 w-4" />
-              처음부터 다시 시작
-            </button>
-          </div>
+        <div className="mt-6 flex items-center justify-between rounded-xl border border-gh-border bg-gh-bg-secondary p-4">
           <button
             type="button"
-            onClick={handleShowReport}
-            disabled={!canShowReport}
-            className="flex items-center justify-center gap-2 rounded-lg bg-gh-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-gh-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => setWorkflowStep('review')}
+            className="flex items-center gap-2 rounded-lg border border-gh-border px-4 py-2 text-sm text-gh-text-muted transition-colors hover:bg-gh-border hover:text-gh-text"
           >
-            <BarChart3 className="h-4 w-4" />
-            분석 리포트 보기
+            <ChevronLeft className="h-4 w-4" />
+            내용 다시 확인
+          </button>
+          <button
+            type="button"
+            onClick={handleRestart}
+            className="flex items-center gap-2 rounded-lg border border-gh-border px-4 py-2 text-sm text-gh-text-muted transition-colors hover:bg-gh-border hover:text-gh-text"
+          >
+            <RotateCcw className="h-4 w-4" />
+            처음부터 다시 시작
           </button>
         </div>
       );
