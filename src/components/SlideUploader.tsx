@@ -1,6 +1,8 @@
-import { Upload, FileText, Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { FileText, Plus, Trash2 } from 'lucide-react';
+import { useState, useCallback } from 'react';
 import type { Slide, SlidePoint } from '../types';
+import { PdfDropzone } from './PdfDropzone';
+import { usePdfLoader } from '../hooks/usePdfLoader';
 
 interface SlideUploaderProps {
   onSlidesUpdate: (slides: Slide[]) => void;
@@ -12,6 +14,16 @@ export function SlideUploader({ onSlidesUpdate, currentSlides }: SlideUploaderPr
   const [editingSlide, setEditingSlide] = useState<Slide | null>(null);
   const [newPointText, setNewPointText] = useState('');
   const [newPointImportance, setNewPointImportance] = useState<SlidePoint['importance']>('important');
+
+  const { loadPdf, isLoading, error: pdfError } = usePdfLoader();
+
+  // Uploading a PDF replaces all current slides with the parsed pages.
+  const handlePdfFile = useCallback(async (file: File) => {
+    const newSlides = await loadPdf(file);
+    if (newSlides.length > 0) {
+      onSlidesUpdate(newSlides);
+    }
+  }, [loadPdf, onSlidesUpdate]);
 
   const addSlide = () => {
     const newSlide: Slide = {
@@ -106,6 +118,12 @@ export function SlideUploader({ onSlidesUpdate, currentSlides }: SlideUploaderPr
           </button>
         </div>
 
+        <PdfDropzone
+          onFileSelected={handlePdfFile}
+          isLoading={isLoading}
+          error={pdfError}
+        />
+
         <div className="space-y-2">
           {currentSlides.map((slide) => (
             <div
@@ -136,11 +154,10 @@ export function SlideUploader({ onSlidesUpdate, currentSlides }: SlideUploaderPr
           ))}
         </div>
 
-        {currentSlides.length === 0 && (
-          <div className="text-center py-8 text-gh-text-muted">
-            <Upload className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p className="text-sm">슬라이드를 추가해서 시작하세요</p>
-          </div>
+        {currentSlides.length === 0 && !isLoading && (
+          <p className="text-center text-sm text-gh-text-muted py-4">
+            PDF를 업로드하거나 슬라이드를 직접 추가하세요
+          </p>
         )}
       </div>
     );
