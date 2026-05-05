@@ -13,14 +13,22 @@ import { SlideViewer } from './components/SlideViewer';
 import { SpeechPanel } from './components/SpeechPanel';
 import { AnalysisReport } from './components/AnalysisReport';
 import { SlideUploader } from './components/SlideUploader';
+import { ContextForm } from './components/ContextForm';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import { useSSAAnalysis } from './hooks/useSSAAnalysis';
+import { enrichSlides } from './lib/enrichSlides';
 import {
   clearPresentationDraft,
   loadPresentationDraft,
   savePresentationDraft,
 } from './lib/presentationStorage';
-import type { Slide, AnalysisReport as ReportType } from './types';
+import type { Slide, AnalysisReport as ReportType, PresentationContext, SlideTimingRecord } from './types';
+
+const DEFAULT_CONTEXT: PresentationContext = {
+  type: 'pitch',
+  audience: 'investors',
+  timeLimitMinutes: 10,
+};
 
 type WorkflowStep = 'upload' | 'review' | 'practice' | 'report';
 
@@ -40,7 +48,11 @@ function App() {
   const [slides, setSlides] = useState<Slide[]>(() => draft?.slides || []);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(() => draft?.currentSlideIndex || 0);
   const [report, setReport] = useState<ReportType | null>(null);
+  const [timingRecords, setTimingRecords] = useState<SlideTimingRecord[]>([]);
   const [workflowStep, setWorkflowStep] = useState<WorkflowStep>(() => draft?.slides.length ? 'review' : 'upload');
+  const [context, setContext] = useState<PresentationContext>(DEFAULT_CONTEXT);
+  const [isEnriching, setIsEnriching] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const selectedSlideIndex = slides.length > 0
     ? Math.min(currentSlideIndex, slides.length - 1)
     : 0;
@@ -51,6 +63,7 @@ function App() {
     interimText,
     error,
     isSupported,
+    audioBlob,
     startListening,
     stopListening,
     clearSegments,
@@ -58,8 +71,10 @@ function App() {
 
   const {
     alignments,
+    isEvaluating,
     updateAlignments,
     generateReport,
+    evaluateWithAI,
   } = useSSAAnalysis(slides);
 
   useEffect(() => {
@@ -88,20 +103,37 @@ function App() {
     }
   }, []);
 
-  const handlePdfUploaded = useCallback((nextSlides: Slide[]) => {
+  const handlePdfUploaded = useCallback((nextSlides: Slide[], file?: File) => {
     setSlides(nextSlides);
     setCurrentSlideIndex(0);
     setReport(null);
+    setTimingRecords([]);
     clearSegments();
     setWorkflowStep('review');
     savePresentationDraft(nextSlides, 0);
-  }, [clearSegments]);
 
-  const handleShowReport = useCallback(() => {
+    if (file) {
+      setUploadedFile(file);
+      setIsEnriching(true);
+      enrichSlides(file, nextSlides, context, (enriched, idx) => {
+        setSlides(prev => prev.map((s, i) => i === idx ? enriched : s));
+      }).then(enrichedAll => {
+        setSlides(enrichedAll);
+        savePresentationDraft(enrichedAll, 0);
+      }).catch(() => {}).finally(() => setIsEnriching(false));
+    }
+  }, [clearSegments, context]);
+
+  const handleShowReport = useCallback(async () => {
     const newReport = generateReport();
     setReport(newReport);
     setWorkflowStep('report');
-  }, [generateReport]);
+
+    if (segments.length > 0) {
+      const records = await evaluateWithAI(audioBlob, segments, context);
+      if (records.length > 0) setTimingRecords(records);
+    }
+  }, [generateReport, evaluateWithAI, audioBlob, segments, context]);
 
   const handleRestart = useCallback(() => {
     if (isListening) {
@@ -183,6 +215,7 @@ function App() {
     if (workflowStep === 'upload') {
       return (
         <div className="mx-auto max-w-2xl py-8">
+          <ContextForm context={context} onChange={setContext} />
           <SlideUploader
             variant="upload"
             onSlidesUpdate={handleSlidesUpdate}
@@ -197,6 +230,12 @@ function App() {
       return (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-1">
+            <ContextForm context={context} onChange={setContext} />
+            {isEnriching && (
+              <p className="text-xs text-gh-text-muted mt-2 px-1">
+                AI가 슬라이드를 분석 중입니다...
+              </p>
+            )}
             <SlideUploader
               onSlidesUpdate={handleSlidesUpdate}
               currentSlides={slides}
@@ -249,6 +288,9 @@ function App() {
             onClear={clearSegments}
             isSupported={isSupported}
             error={error}
+            alignments={alignments}
+            slides={slides}
+            currentSlideIndex={selectedSlideIndex}
           />
         </div>
       </div>
@@ -393,6 +435,8 @@ function App() {
       {workflowStep === 'report' && report && (
         <AnalysisReport
           report={report}
+          timingRecords={timingRecords}
+          isEvaluating={isEvaluating}
           onClose={() => setWorkflowStep('practice')}
           onRestart={handleRestart}
         />

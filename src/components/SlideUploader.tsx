@@ -9,7 +9,7 @@ interface SlideUploaderProps {
   currentSlides: Slide[];
   currentSlideIndex?: number;
   onSlideSelect?: (index: number) => void;
-  onPdfUploaded?: (slides: Slide[]) => void;
+  onPdfUploaded?: (slides: Slide[], file?: File) => void;
   variant?: 'upload' | 'manage';
 }
 
@@ -34,7 +34,7 @@ export function SlideUploader({
     if (newSlides.length > 0) {
       onSlidesUpdate(newSlides);
       onSlideSelect?.(0);
-      onPdfUploaded?.(newSlides);
+      onPdfUploaded?.(newSlides, file);
     }
   }, [loadPdf, onPdfUploaded, onSlideSelect, onSlidesUpdate]);
 

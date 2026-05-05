@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import type { SpeechSegment } from '../types';
+import { estimateTimingsFromSegments } from '../lib/ai/ktGenieDictation';
 
 declare global {
   interface Window {
@@ -14,9 +15,14 @@ export function useSpeechRecognition() {
   const [interimText, setInterimText] = useState('');
   const [error, setError] = useState<string | null>(null);
   
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+
   const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const isListeningRef = useRef(false);
   const startTimeRef = useRef(0);
+  const segmentsRef = useRef<SpeechSegment[]>([]);
 
   const isSupported = typeof window !== 'undefined' && 
     (window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -46,7 +52,11 @@ export function useSpeechRecognition() {
             matchedPointIds: [],
             confidence: result[0].confidence || 0.9,
           };
-          setSegments(prev => [...prev, newSegment]);
+          setSegments(prev => {
+            const updated = [...prev, newSegment];
+            segmentsRef.current = updated;
+            return updated;
+          });
           setInterimText('');
         } else {
           interim += transcript;
@@ -91,23 +101,37 @@ export function useSpeechRecognition() {
 
   const startListening = useCallback(async () => {
     setError(null);
-    
+    setAudioBlob(null);
+    audioChunksRef.current = [];
+    segmentsRef.current = [];
+
     if (!isSupported) {
       setError('Chrome 브라우저에서만 지원됩니다.');
       return;
     }
 
+    let stream: MediaStream;
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (e) {
       setError('마이크 권한을 허용해주세요.');
       return;
     }
 
     if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {}
+      try { recognitionRef.current.stop(); } catch (e) {}
+    }
+
+    // MediaRecorder: captures full audio for KT Genie post-hoc transcription
+    try {
+      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+      recorder.ondataavailable = e => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start(1000);
+    } catch (e) {
+      // MediaRecorder optional — Web Speech remains the live source
     }
 
     const recognition = createRecognition();
@@ -131,18 +155,39 @@ export function useSpeechRecognition() {
     isListeningRef.current = false;
     setIsListening(false);
     setInterimText('');
-    
+
     if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {}
+      try { recognitionRef.current.stop(); } catch (e) {}
       recognitionRef.current = null;
+    }
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
+        setAudioBlob(blob);
+        // Backfill startMs/endMs on recorded segments using Web Speech timestamps
+        const enriched = estimateTimingsFromSegments(
+          segmentsRef.current.map(s => ({ text: s.text, timestamp: s.timestamp }))
+        );
+        setSegments(prev =>
+          prev.map((seg, i) => ({
+            ...seg,
+            startMs: enriched[i]?.startMs,
+            endMs: enriched[i]?.endMs,
+          }))
+        );
+      };
+      try { mediaRecorderRef.current.stop(); } catch (e) {}
+      mediaRecorderRef.current = null;
     }
   }, []);
 
   const clearSegments = useCallback(() => {
     setSegments([]);
     setInterimText('');
+    setAudioBlob(null);
+    audioChunksRef.current = [];
+    segmentsRef.current = [];
   }, []);
 
   return {
@@ -151,6 +196,7 @@ export function useSpeechRecognition() {
     interimText,
     error,
     isSupported,
+    audioBlob,
     startListening,
     stopListening,
     clearSegments,

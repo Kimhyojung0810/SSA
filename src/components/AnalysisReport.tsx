@@ -12,15 +12,25 @@ import {
   X
 } from 'lucide-react';
 import { useState } from 'react';
-import type { AnalysisReport as ReportType } from '../types';
+import type { AnalysisReport as ReportType, SlideTimingRecord, SolarVerdict } from '../types';
 
 interface AnalysisReportProps {
   report: ReportType;
+  timingRecords?: SlideTimingRecord[];
+  isEvaluating?: boolean;
   onClose: () => void;
   onRestart?: () => void;
 }
 
-export function AnalysisReport({ report, onClose, onRestart }: AnalysisReportProps) {
+const VERDICT_LABELS: Record<SolarVerdict, { label: string; color: string }> = {
+  covered:               { label: '커버됨',      color: 'bg-gh-green/20 text-gh-green' },
+  justified_omission:    { label: '합리적 생략', color: 'bg-gh-text-muted/20 text-gh-text-muted' },
+  critical_missing:      { label: '핵심 누락',   color: 'bg-gh-red/20 text-gh-red' },
+  logical_inconsistency: { label: '논리 모순',   color: 'bg-gh-yellow/20 text-gh-yellow' },
+  over_explanation:      { label: '과잉 설명',   color: 'bg-gh-yellow/10 text-gh-yellow' },
+};
+
+export function AnalysisReport({ report, timingRecords = [], isEvaluating = false, onClose, onRestart }: AnalysisReportProps) {
   const [expandedSlides, setExpandedSlides] = useState<Set<string>>(new Set());
 
   const toggleSlide = (slideId: string) => {
@@ -164,6 +174,59 @@ export function AnalysisReport({ report, onClose, onRestart }: AnalysisReportPro
             </div>
           )}
 
+          {(timingRecords.length > 0 || isEvaluating) && (
+            <div className="p-4 bg-gh-bg rounded-xl border border-gh-border">
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp className="w-5 h-5 text-gh-text-muted" />
+                <span className="font-bold text-gh-text">시간 배분 분석</span>
+                {isEvaluating && (
+                  <span className="text-xs text-gh-text-muted animate-pulse ml-auto">AI 분석 중...</span>
+                )}
+              </div>
+              {timingRecords.length > 0 && (
+                <div className="space-y-2">
+                  {timingRecords.map(rec => {
+                    const maxSec = Math.max(rec.recommendedSeconds, rec.actualSeconds ?? 0, 1);
+                    const recPct = Math.round((rec.recommendedSeconds / maxSec) * 100);
+                    const actPct = rec.actualSeconds != null
+                      ? Math.round((rec.actualSeconds / maxSec) * 100)
+                      : null;
+                    return (
+                      <div key={rec.slideId}>
+                        <div className="flex items-center justify-between text-xs text-gh-text-muted mb-1">
+                          <span>슬라이드 {rec.slideNumber}</span>
+                          <span>
+                            권장 {rec.recommendedSeconds}s
+                            {rec.actualSeconds != null && ` / 실제 ${rec.actualSeconds}s`}
+                          </span>
+                        </div>
+                        <div className="relative h-3 bg-gh-border rounded-full overflow-hidden">
+                          <div
+                            className="absolute inset-y-0 left-0 bg-gh-accent/40 rounded-full"
+                            style={{ width: `${recPct}%` }}
+                          />
+                          {actPct != null && (
+                            <div
+                              className={`absolute inset-y-0 left-0 rounded-full opacity-80 ${
+                                actPct > recPct ? 'bg-gh-yellow' : 'bg-gh-green'
+                              }`}
+                              style={{ width: `${actPct}%` }}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div className="flex items-center gap-4 mt-2 text-xs text-gh-text-muted">
+                    <span className="flex items-center gap-1"><span className="inline-block w-3 h-2 rounded bg-gh-accent/40" /> 권장</span>
+                    <span className="flex items-center gap-1"><span className="inline-block w-3 h-2 rounded bg-gh-green" /> 실제 (적정)</span>
+                    <span className="flex items-center gap-1"><span className="inline-block w-3 h-2 rounded bg-gh-yellow" /> 실제 (초과)</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div>
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-5 h-5 text-gh-text-muted" />
@@ -218,11 +281,18 @@ export function AnalysisReport({ report, onClose, onRestart }: AnalysisReportPro
                               <span className="font-medium">설명 완료 ({slide.covered.length})</span>
                             </div>
                             <ul className="space-y-1 pl-6">
-                              {slide.covered.map(point => (
-                                <li key={point.id} className="text-sm text-gh-text-muted list-disc">
-                                  {point.text}
-                                </li>
-                              ))}
+                              {slide.covered.map(point => {
+                                const verdict = (point as any).solarVerdict as SolarVerdict | undefined;
+                                const vInfo = verdict ? VERDICT_LABELS[verdict] : undefined;
+                                return (
+                                  <li key={point.id} className="text-sm text-gh-text-muted list-disc">
+                                    <span className="mr-2">{point.text}</span>
+                                    {vInfo && (
+                                      <span className={`text-xs px-1.5 py-0.5 rounded ${vInfo.color}`}>{vInfo.label}</span>
+                                    )}
+                                  </li>
+                                );
+                              })}
                             </ul>
                           </div>
                         )}
