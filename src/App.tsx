@@ -1,23 +1,60 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  BarChart3,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  Mic,
+  RotateCcw,
+  Upload,
+} from 'lucide-react';
 import { Header } from './components/Header';
 import { SlideViewer } from './components/SlideViewer';
 import { SpeechPanel } from './components/SpeechPanel';
 import { AnalysisReport } from './components/AnalysisReport';
 import { SlideUploader } from './components/SlideUploader';
+import { ContextForm } from './components/ContextForm';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import { useSSAAnalysis } from './hooks/useSSAAnalysis';
-import { demoSlides } from './data/demoSlides';
-import type { Slide, AnalysisReport as ReportType } from './types';
-import { Play, FileText, RotateCcw } from 'lucide-react';
+import { enrichSlides } from './lib/enrichSlides';
+import {
+  clearPresentationDraft,
+  loadPresentationDraft,
+  savePresentationDraft,
+} from './lib/presentationStorage';
+import type { Slide, AnalysisReport as ReportType, PresentationContext, SlideTimingRecord } from './types';
 
-type ViewMode = 'practice' | 'slides';
+const DEFAULT_CONTEXT: PresentationContext = {
+  type: 'pitch',
+  audience: 'investors',
+  timeLimitMinutes: 10,
+};
+
+type WorkflowStep = 'upload' | 'review' | 'practice' | 'report';
+
+const workflowSteps: Array<{
+  id: WorkflowStep;
+  label: string;
+  icon: typeof Upload;
+}> = [
+  { id: 'upload', label: 'PDF 업로드', icon: Upload },
+  { id: 'review', label: '내용 확인', icon: Eye },
+  { id: 'practice', label: '발표 연습', icon: Mic },
+  { id: 'report', label: '분석 리포트', icon: BarChart3 },
+];
 
 function App() {
-  const [slides, setSlides] = useState<Slide[]>(demoSlides);
-  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
-  const [showReport, setShowReport] = useState(false);
+  const draft = useMemo(() => loadPresentationDraft(), []);
+  const [slides, setSlides] = useState<Slide[]>(() => draft?.slides || []);
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(() => draft?.currentSlideIndex || 0);
   const [report, setReport] = useState<ReportType | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('practice');
+  const [timingRecords, setTimingRecords] = useState<SlideTimingRecord[]>([]);
+  const [workflowStep, setWorkflowStep] = useState<WorkflowStep>(() => draft?.slides.length ? 'review' : 'upload');
+  const [context, setContext] = useState<PresentationContext>(DEFAULT_CONTEXT);
+  const [isEnriching, setIsEnriching] = useState(false);
+  const selectedSlideIndex = slides.length > 0
+    ? Math.min(currentSlideIndex, slides.length - 1)
+    : 0;
 
   const {
     isListening,
@@ -25,6 +62,7 @@ function App() {
     interimText,
     error,
     isSupported,
+    audioBlob,
     startListening,
     stopListening,
     clearSegments,
@@ -32,8 +70,10 @@ function App() {
 
   const {
     alignments,
+    isEvaluating,
     updateAlignments,
     generateReport,
+    evaluateWithAI,
   } = useSSAAnalysis(slides);
 
   useEffect(() => {
@@ -42,101 +82,333 @@ function App() {
     }
   }, [segments, updateAlignments]);
 
-  const handleShowReport = useCallback(() => {
-    const newReport = generateReport();
-    setReport(newReport);
-    setShowReport(true);
-  }, [generateReport]);
+  useEffect(() => {
+    if (slides.length > 0) {
+      savePresentationDraft(slides, selectedSlideIndex);
+    }
+  }, [selectedSlideIndex, slides]);
 
-  const handleReset = useCallback(() => {
-    clearSegments();
+  const handleSlideChange = useCallback((index: number) => {
+    setCurrentSlideIndex(Math.min(Math.max(index, 0), Math.max(slides.length - 1, 0)));
+  }, [slides.length]);
+
+  const handleSlidesUpdate = useCallback((nextSlides: Slide[]) => {
+    setSlides(nextSlides);
+    if (nextSlides.length === 0) {
+      setCurrentSlideIndex(0);
+      setReport(null);
+      setWorkflowStep('upload');
+      clearPresentationDraft();
+    }
+  }, []);
+
+  const handlePdfUploaded = useCallback((nextSlides: Slide[], file?: File) => {
+    setSlides(nextSlides);
     setCurrentSlideIndex(0);
     setReport(null);
-  }, [clearSegments]);
+    setTimingRecords([]);
+    clearSegments();
+    setWorkflowStep('review');
+    savePresentationDraft(nextSlides, 0);
+
+    if (file) {
+      setIsEnriching(true);
+      enrichSlides(file, nextSlides, context, (enriched, idx) => {
+        setSlides(prev => prev.map((s, i) => i === idx ? enriched : s));
+      }).then(enrichedAll => {
+        setSlides(enrichedAll);
+        savePresentationDraft(enrichedAll, 0);
+      }).catch(() => {}).finally(() => setIsEnriching(false));
+    }
+  }, [clearSegments, context]);
+
+  const handleShowReport = useCallback(async () => {
+    const newReport = generateReport();
+    setReport(newReport);
+    setWorkflowStep('report');
+
+    if (segments.length > 0) {
+      const records = await evaluateWithAI(audioBlob, segments, context);
+      if (records.length > 0) setTimingRecords(records);
+    }
+  }, [generateReport, evaluateWithAI, audioBlob, segments, context]);
+
+  const handleRestart = useCallback(() => {
+    if (isListening) {
+      stopListening();
+    }
+    clearSegments();
+    setSlides([]);
+    setCurrentSlideIndex(0);
+    setReport(null);
+    setWorkflowStep('upload');
+    clearPresentationDraft();
+  }, [clearSegments, isListening, stopListening]);
+
+  const canReview = slides.length > 0;
+  const canShowReport = segments.length > 0;
+  const activeStepIndex = workflowSteps.findIndex(step => step.id === workflowStep);
+
+  const moveToStep = useCallback((step: WorkflowStep) => {
+    if (step === 'upload') {
+      handleRestart();
+      return;
+    }
+
+    if ((step === 'review' || step === 'practice') && canReview) {
+      setWorkflowStep(step);
+    }
+
+    if (step === 'report' && canShowReport) {
+      handleShowReport();
+    }
+  }, [canReview, canShowReport, handleRestart, handleShowReport]);
+
+  const renderStepper = () => (
+    <div className="mb-6 grid grid-cols-2 gap-2 md:grid-cols-4">
+      {workflowSteps.map((step, index) => {
+        const Icon = step.icon;
+        const isActive = step.id === workflowStep;
+        const isComplete = index < activeStepIndex;
+        const isLocked =
+          (step.id === 'review' || step.id === 'practice') && !canReview ||
+          step.id === 'report' && !canShowReport;
+
+        return (
+          <button
+            type="button"
+            key={step.id}
+            onClick={() => moveToStep(step.id)}
+            disabled={isLocked || step.id === workflowStep}
+            className={`flex items-center gap-3 rounded-lg border px-3 py-3 ${
+              isActive
+                ? 'border-gh-accent bg-gh-accent/10 text-gh-text'
+                : isComplete
+                ? 'border-gh-green/40 bg-gh-green/10 text-gh-text'
+                : isLocked
+                ? 'border-gh-border bg-gh-bg-secondary text-gh-text-muted opacity-60'
+                : 'border-gh-border bg-gh-bg-secondary text-gh-text-muted'
+            } ${isLocked || isActive ? 'cursor-default' : 'hover:border-gh-accent/50 hover:bg-gh-accent/5'}`}
+          >
+            <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+              isActive
+                ? 'bg-gh-accent text-white'
+                : isComplete
+                ? 'bg-gh-green text-white'
+                : 'bg-gh-border text-gh-text-muted'
+            }`}>
+              <Icon className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs text-gh-text-muted">Step {index + 1}</p>
+              <p className="truncate text-sm font-semibold">{step.label}</p>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const renderContent = () => {
+    if (workflowStep === 'upload') {
+      return (
+        <div className="mx-auto max-w-2xl py-8">
+          <ContextForm context={context} onChange={setContext} />
+          <SlideUploader
+            variant="upload"
+            onSlidesUpdate={handleSlidesUpdate}
+            onPdfUploaded={handlePdfUploaded}
+            currentSlides={slides}
+          />
+        </div>
+      );
+    }
+
+    if (workflowStep === 'review') {
+      return (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-1">
+            <ContextForm context={context} onChange={setContext} />
+            {isEnriching && (
+              <p className="text-xs text-gh-text-muted mt-2 px-1">
+                AI가 슬라이드를 분석 중입니다...
+              </p>
+            )}
+            <SlideUploader
+              onSlidesUpdate={handleSlidesUpdate}
+              currentSlides={slides}
+              currentSlideIndex={selectedSlideIndex}
+              onSlideSelect={handleSlideChange}
+              onPdfUploaded={handlePdfUploaded}
+            />
+          </div>
+          <div className="lg:col-span-2">
+            {slides.length > 0 ? (
+              <SlideViewer
+                slides={slides}
+                currentIndex={selectedSlideIndex}
+                onSlideChange={handleSlideChange}
+                alignments={alignments}
+              />
+            ) : (
+              <div className="aspect-[16/9] bg-gh-bg-secondary border border-gh-border rounded-xl flex items-center justify-center">
+                <p className="text-sm text-gh-text-muted">미리 볼 슬라이드가 없습니다.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          {slides.length > 0 ? (
+            <SlideViewer
+              slides={slides}
+              currentIndex={selectedSlideIndex}
+              onSlideChange={handleSlideChange}
+              alignments={alignments}
+            />
+          ) : (
+            <div className="aspect-[16/9] bg-gh-bg-secondary border border-gh-border rounded-xl flex items-center justify-center">
+              <p className="text-sm text-gh-text-muted">먼저 PDF를 업로드하세요.</p>
+            </div>
+          )}
+        </div>
+        <div className="lg:col-span-1">
+          <SpeechPanel
+            isListening={isListening}
+            segments={segments}
+            interimText={interimText}
+            onStart={startListening}
+            onStop={stopListening}
+            onClear={clearSegments}
+            isSupported={isSupported}
+            error={error}
+            alignments={alignments}
+            slides={slides}
+            currentSlideIndex={selectedSlideIndex}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  const renderActionBar = () => {
+    if (workflowStep === 'upload') {
+      return (
+        <div className="mt-6 flex items-center justify-end rounded-xl border border-gh-border bg-gh-bg-secondary p-4">
+          <button
+            type="button"
+            onClick={() => setWorkflowStep('review')}
+            disabled={!canReview}
+            className="flex items-center gap-2 rounded-lg bg-gh-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-gh-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            내용 확인하기
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      );
+    }
+
+    if (workflowStep === 'review') {
+      return (
+        <div className="mt-6 flex items-center justify-between rounded-xl border border-gh-border bg-gh-bg-secondary p-4">
+          <button
+            type="button"
+            onClick={handleRestart}
+            className="flex items-center gap-2 rounded-lg border border-gh-border px-4 py-2 text-sm text-gh-text-muted transition-colors hover:bg-gh-border hover:text-gh-text"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            PDF 다시 업로드
+          </button>
+          <button
+            type="button"
+            onClick={() => setWorkflowStep('practice')}
+            disabled={!canReview}
+            className="flex items-center gap-2 rounded-lg bg-gh-green px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-gh-green/90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            발표 연습 시작
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      );
+    }
+
+    if (workflowStep === 'practice') {
+      return (
+        <div className="mt-6 flex flex-col gap-3 rounded-xl border border-gh-border bg-gh-bg-secondary p-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => setWorkflowStep('review')}
+              className="flex items-center gap-2 rounded-lg border border-gh-border px-4 py-2 text-sm text-gh-text-muted transition-colors hover:bg-gh-border hover:text-gh-text"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              내용 다시 확인
+            </button>
+            <button
+              type="button"
+              onClick={handleRestart}
+              className="flex items-center gap-2 rounded-lg border border-gh-border px-4 py-2 text-sm text-gh-text-muted transition-colors hover:bg-gh-border hover:text-gh-text"
+            >
+              <RotateCcw className="h-4 w-4" />
+              처음부터 다시 시작
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={handleShowReport}
+            disabled={!canShowReport}
+            className="flex items-center justify-center gap-2 rounded-lg bg-gh-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-gh-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <BarChart3 className="h-4 w-4" />
+            분석 리포트 보기
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-6 flex items-center justify-between rounded-xl border border-gh-border bg-gh-bg-secondary p-4">
+        <button
+          type="button"
+          onClick={() => setWorkflowStep('practice')}
+          className="flex items-center gap-2 rounded-lg border border-gh-border px-4 py-2 text-sm text-gh-text-muted transition-colors hover:bg-gh-border hover:text-gh-text"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          연습으로 돌아가기
+        </button>
+        <button
+          type="button"
+          onClick={handleRestart}
+          className="flex items-center gap-2 rounded-lg bg-gh-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-gh-accent/90"
+        >
+          <RotateCcw className="h-4 w-4" />
+          처음부터 다시 시작
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gh-bg">
-      <Header 
-        onShowReport={handleShowReport} 
-        hasSegments={segments.length > 0}
-      />
+      <Header />
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex bg-gh-bg-secondary rounded-lg border border-gh-border p-1">
-            <button
-              onClick={() => setViewMode('practice')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'practice'
-                  ? 'bg-gh-accent text-white'
-                  : 'text-gh-text-muted hover:text-gh-text hover:bg-gh-border/50'
-              }`}
-            >
-              <Play className="w-4 h-4" />
-              연습 모드
-            </button>
-            <button
-              onClick={() => setViewMode('slides')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'slides'
-                  ? 'bg-gh-accent text-white'
-                  : 'text-gh-text-muted hover:text-gh-text hover:bg-gh-border/50'
-              }`}
-            >
-              <FileText className="w-4 h-4" />
-              슬라이드 편집
-            </button>
-          </div>
-
-          {viewMode === 'practice' && segments.length > 0 && (
-            <button
-              onClick={handleReset}
-              className="flex items-center gap-2 px-4 py-2 border border-gh-border rounded-lg text-sm text-gh-text-muted hover:text-gh-text hover:bg-gh-border/50 transition-colors"
-            >
-              <RotateCcw className="w-4 h-4" />
-              초기화
-            </button>
-          )}
-        </div>
-
-        {viewMode === 'slides' ? (
-          <SlideUploader 
-            onSlidesUpdate={setSlides} 
-            currentSlides={slides}
-          />
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <SlideViewer
-                slides={slides}
-                currentIndex={currentSlideIndex}
-                onSlideChange={setCurrentSlideIndex}
-                alignments={alignments}
-              />
-            </div>
-            <div className="lg:col-span-1">
-              <SpeechPanel
-                isListening={isListening}
-                segments={segments}
-                interimText={interimText}
-                onStart={startListening}
-                onStop={stopListening}
-                onClear={clearSegments}
-                isSupported={isSupported}
-                error={error}
-              />
-            </div>
-          </div>
-        )}
+      <div className="mx-auto max-w-7xl px-4 py-6">
+        {renderStepper()}
+        {renderContent()}
+        {renderActionBar()}
 
         <div className="mt-8 p-5 bg-gh-bg-secondary border border-gh-border rounded-xl">
           <h3 className="text-sm font-bold text-gh-text mb-4">사용 방법</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {[
-              { step: 1, text: '슬라이드 편집에서 발표 자료의 핵심 포인트를 입력하세요' },
-              { step: 2, text: '연습 모드에서 "발표 시작" 버튼을 눌러 마이크를 활성화하세요' },
-              { step: 3, text: '슬라이드를 보며 발표하면 실시간으로 커버리지가 표시됩니다' },
-              { step: 4, text: '"분석 리포트"에서 누락된 포인트와 개선점을 확인하세요' },
+              { step: 1, text: 'PDF를 업로드해 발표 자료를 슬라이드 단위로 불러오세요' },
+              { step: 2, text: '각 페이지를 확인하고 제목과 체크포인트를 조정하세요' },
+              { step: 3, text: '업로드한 PDF 페이지를 보며 발표를 녹음하세요' },
+              { step: 4, text: '분석 리포트에서 누락된 포인트와 개선점을 확인하세요' },
             ].map(({ step, text }) => (
               <div key={step} className="flex items-start gap-3">
                 <span className="flex-shrink-0 w-7 h-7 rounded-full bg-gh-accent/20 text-gh-accent flex items-center justify-center text-sm font-bold">
@@ -158,10 +430,13 @@ function App() {
         </footer>
       </div>
 
-      {showReport && report && (
+      {workflowStep === 'report' && report && (
         <AnalysisReport
           report={report}
-          onClose={() => setShowReport(false)}
+          timingRecords={timingRecords}
+          isEvaluating={isEvaluating}
+          onClose={() => setWorkflowStep('practice')}
+          onRestart={handleRestart}
         />
       )}
     </div>

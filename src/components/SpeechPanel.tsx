@@ -1,5 +1,5 @@
-import { Mic, MicOff, Trash2, Volume2 } from 'lucide-react';
-import type { SpeechSegment } from '../types';
+import { CheckCircle2, Mic, MicOff, Trash2, Volume2 } from 'lucide-react';
+import type { AlignmentResult, Slide, SpeechSegment } from '../types';
 
 interface SpeechPanelProps {
   isListening: boolean;
@@ -10,6 +10,9 @@ interface SpeechPanelProps {
   onClear: () => void;
   isSupported: boolean;
   error: string | null;
+  alignments?: AlignmentResult[];
+  slides?: Slide[];
+  currentSlideIndex?: number;
 }
 
 export function SpeechPanel({
@@ -21,6 +24,9 @@ export function SpeechPanel({
   onClear,
   isSupported,
   error,
+  alignments = [],
+  slides = [],
+  currentSlideIndex = 0,
 }: SpeechPanelProps) {
   const formatTime = (ms: number) => {
     const seconds = Math.floor(ms / 1000);
@@ -28,6 +34,32 @@ export function SpeechPanel({
     const secs = seconds % 60;
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const totalPoints = slides.reduce((sum, s) => sum + s.points.length, 0);
+  const coveredCount = alignments.filter(a => a.status === 'covered').length;
+  const partialCount = alignments.filter(a => a.status === 'partial').length;
+  const coveragePercent = totalPoints > 0
+    ? Math.round(((coveredCount + partialCount * 0.5) / totalPoints) * 100)
+    : 0;
+
+  const currentSlide = slides[currentSlideIndex];
+  const currentSlideCovered = currentSlide
+    ? alignments.filter(
+        a => a.slideId === currentSlide.id && (a.status === 'covered' || a.status === 'partial')
+      ).length
+    : 0;
+  const currentSlideTotal = currentSlide?.points.length ?? 0;
+
+  const getSegmentMatches = (segmentId: string) =>
+    alignments
+      .filter(a => a.speechSegmentId === segmentId && (a.status === 'covered' || a.status === 'partial'))
+      .flatMap(a => {
+        for (const slide of slides) {
+          const point = slide.points.find(p => p.id === a.pointId);
+          if (point) return [{ text: point.text, slideNumber: slide.number }];
+        }
+        return [];
+      });
 
   return (
     <div className="bg-gh-bg-secondary border border-gh-border rounded-lg overflow-hidden h-full flex flex-col">
@@ -51,6 +83,7 @@ export function SpeechPanel({
           </span>
           {segments.length > 0 && (
             <button
+              type="button"
               onClick={onClear}
               className="p-1.5 rounded border border-gh-border hover:bg-gh-border hover:text-gh-red transition-colors"
               title="기록 삭제"
@@ -75,6 +108,36 @@ export function SpeechPanel({
         </div>
       )}
 
+      {totalPoints > 0 && (
+        <div className="px-4 py-3 border-b border-gh-border bg-gh-bg">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-semibold text-gh-text">실시간 분석</span>
+            <span className={`text-xs font-bold ${
+              coveragePercent >= 80 ? 'text-green-400' :
+              coveragePercent >= 50 ? 'text-yellow-400' :
+              coveragePercent > 0  ? 'text-gh-accent' : 'text-gh-text-muted'
+            }`}>
+              {coveredCount + partialCount}/{totalPoints} 체크포인트
+            </span>
+          </div>
+          <div className="h-1.5 bg-gh-border rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                coveragePercent >= 80 ? 'bg-green-400' :
+                coveragePercent >= 50 ? 'bg-yellow-400' :
+                coveragePercent > 0  ? 'bg-gh-accent' : 'bg-gh-border'
+              }`}
+              style={{ width: `${coveragePercent}%` }}
+            />
+          </div>
+          {currentSlide && currentSlideTotal > 0 && (
+            <p className="text-xs text-gh-text-muted mt-1.5">
+              현재 슬라이드 #{currentSlide.number}: {currentSlideCovered}/{currentSlideTotal} 커버됨
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[250px] max-h-[400px]">
         {segments.length === 0 && !interimText ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-8">
@@ -92,20 +155,38 @@ export function SpeechPanel({
           </div>
         ) : (
           <>
-            {segments.map((segment, idx) => (
-              <div
-                key={segment.id}
-                className="flex gap-3 p-3 bg-gh-bg rounded-lg border border-gh-border hover:border-gh-accent/50 transition-colors"
-              >
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-xs text-gh-text-muted font-mono">
-                    {formatTime(segment.timestamp)}
-                  </span>
-                  <span className="text-xs text-gh-accent">#{idx + 1}</span>
+            {segments.map((segment, idx) => {
+              const matches = getSegmentMatches(segment.id);
+              return (
+                <div
+                  key={segment.id}
+                  className="flex gap-3 p-3 bg-gh-bg rounded-lg border border-gh-border hover:border-gh-accent/50 transition-colors"
+                >
+                  <div className="flex flex-col items-center gap-1 shrink-0">
+                    <span className="text-xs text-gh-text-muted font-mono">
+                      {formatTime(segment.timestamp)}
+                    </span>
+                    <span className="text-xs text-gh-accent">#{idx + 1}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-gh-text text-sm leading-relaxed">{segment.text}</p>
+                    {matches.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {matches.map((match, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 bg-green-500/15 text-green-400 rounded border border-green-500/20"
+                          >
+                            <CheckCircle2 className="w-3 h-3 shrink-0" />
+                            <span className="truncate max-w-[140px]">{match.text}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <p className="text-gh-text text-sm flex-1 leading-relaxed">{segment.text}</p>
-              </div>
-            ))}
+              );
+            })}
             {interimText && (
               <div className="flex gap-3 p-3 bg-gh-accent/10 rounded-lg border border-gh-accent/30 animate-pulse">
                 <span className="text-xs text-gh-accent font-mono">...</span>
@@ -118,6 +199,7 @@ export function SpeechPanel({
 
       <div className="p-4 border-t border-gh-border bg-gh-bg">
         <button
+          type="button"
           onClick={isListening ? onStop : onStart}
           disabled={!isSupported}
           className={`w-full py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${

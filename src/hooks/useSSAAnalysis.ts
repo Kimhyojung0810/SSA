@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react';
-import type { Slide, SlidePoint, SpeechSegment, AlignmentResult, AnalysisReport } from '../types';
+import type { Slide, SlidePoint, SpeechSegment, AlignmentResult, AnalysisReport, PresentationContext, SlideTimingRecord } from '../types';
+import { transcribeWithKTGenie, estimateTimingsFromSegments } from '../lib/ai/ktGenieDictation';
+import { evaluatePresentation } from '../lib/ai/solarPro';
 
 function normalizeKorean(text: string): string {
   return text
@@ -72,6 +74,7 @@ function calculateMatchScore(pointText: string, speechText: string): {
 
 export function useSSAAnalysis(slides: Slide[]) {
   const [alignments, setAlignments] = useState<AlignmentResult[]>([]);
+  const [isEvaluating, setIsEvaluating] = useState(false);
 
   const analyzeAlignment = useCallback((segments: SpeechSegment[]): AlignmentResult[] => {
     const allSpeechText = segments.map(s => s.text).join(' ');
@@ -253,10 +256,74 @@ export function useSSAAnalysis(slides: Slide[]) {
     };
   }, [slides, alignments, getSlidesCoverage]);
 
+  const evaluateWithAI = useCallback(async (
+    audioBlob: Blob | null,
+    segments: SpeechSegment[],
+    context: PresentationContext,
+  ): Promise<SlideTimingRecord[]> => {
+    if (slides.length === 0 || segments.length === 0) return [];
+    setIsEvaluating(true);
+    try {
+      // Step 1: get accurate timestamps via KT Genie, or fall back to Web Speech estimates
+      let ktSegments;
+      if (audioBlob) {
+        try {
+          ktSegments = await transcribeWithKTGenie(audioBlob);
+        } catch {
+          ktSegments = estimateTimingsFromSegments(
+            segments.map(s => ({ text: s.text, timestamp: s.timestamp }))
+          );
+        }
+      } else {
+        ktSegments = estimateTimingsFromSegments(
+          segments.map(s => ({ text: s.text, timestamp: s.timestamp }))
+        );
+      }
+
+      const transcript = ktSegments.map(s => s.text).join(' ');
+
+      // Step 2: Solar Pro deep evaluation
+      const { verdicts, timingFeedback } = await evaluatePresentation(slides, transcript, context);
+
+      // Step 3: merge Solar verdicts into existing alignments
+      setAlignments(prev =>
+        prev.map(a => {
+          const v = verdicts.find(vd => vd.pointId === a.pointId);
+          if (!v) return a;
+          return { ...a, solarVerdict: v.verdict, solarFeedback: v.feedback };
+        })
+      );
+
+      // Step 4: build timing records with actual seconds from KT timestamps
+      const totalMs = ktSegments.length > 0
+        ? (ktSegments[ktSegments.length - 1].endMs - ktSegments[0].startMs)
+        : 0;
+      const totalSec = totalMs / 1000;
+
+      return slides.map(slide => {
+        const tf = timingFeedback.find(t => t.slideId === slide.id);
+        const slideFrac = slide.points.length / Math.max(1, slides.reduce((s, sl) => s + sl.points.length, 0));
+        return {
+          slideId: slide.id,
+          slideNumber: slide.number,
+          recommendedSeconds: tf?.recommendedSeconds ?? Math.round(context.timeLimitMinutes * 60 * slideFrac),
+          actualSeconds: Math.round(totalSec * slideFrac),
+        };
+      });
+    } catch (err) {
+      console.warn('[evaluateWithAI] failed:', err);
+      return [];
+    } finally {
+      setIsEvaluating(false);
+    }
+  }, [slides]);
+
   return {
     alignments,
+    isEvaluating,
     updateAlignments,
     getSlidesCoverage,
     generateReport,
+    evaluateWithAI,
   };
 }

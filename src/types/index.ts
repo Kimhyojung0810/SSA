@@ -1,3 +1,23 @@
+export interface PresentationContext {
+  type: 'pitch' | 'lecture' | 'defense' | 'meeting';
+  audience: 'investors' | 'general' | 'experts' | 'academic';
+  timeLimitMinutes: number;
+}
+
+export type SolarVerdict =
+  | 'covered'
+  | 'justified_omission'
+  | 'critical_missing'
+  | 'logical_inconsistency'
+  | 'over_explanation';
+
+export interface SlideTimingRecord {
+  slideId: string;
+  slideNumber: number;
+  recommendedSeconds: number;
+  actualSeconds?: number;
+}
+
 export interface SlidePoint {
   id: string;
   text: string;
@@ -9,6 +29,7 @@ export interface Slide {
   id: string;
   number: number;
   title: string;
+  content?: string;
   imageUrl?: string;
   points: SlidePoint[];
   coveragePercent: number;
@@ -20,6 +41,8 @@ export interface SpeechSegment {
   id: string;
   text: string;
   timestamp: number;
+  startMs?: number;
+  endMs?: number;
   slideId?: string;
   matchedPointIds: string[];
   confidence: number;
@@ -32,6 +55,8 @@ export interface AlignmentResult {
   speechSegmentId?: string;
   matchConfidence: number;
   feedback?: string;
+  solarVerdict?: SolarVerdict;
+  solarFeedback?: string;
 }
 
 export interface PresentationSession {
