@@ -322,7 +322,7 @@ export function SpeechPanel({
             className="w-full py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 bg-gh-red text-white hover:bg-gh-red/90 transition-all"
           >
             <MicOff className="w-5 h-5" />
-            녹음 중지
+            녹음 정지
           </button>
         ) : hasRecorded ? (
           <>

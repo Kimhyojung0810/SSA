@@ -71,6 +71,123 @@ export interface PresentationSession {
   isRecording: boolean;
 }
 
+export type TimeStatus = 'over' | 'ok' | 'under' | 'skipped';
+
+export interface SlideTimingDetail {
+  slideNumber: number;
+  slideTitle: string;
+  actualSeconds: number;
+  recommendedSeconds: number;
+  status: TimeStatus;
+  coreContentCoverage: number;
+  overReason?: string;
+  underReason?: string;
+  suggestion: string;
+}
+
+export interface TimeConsistencyData {
+  totalActualSeconds: number;
+  totalRecommendedSeconds: number;
+  overallScore: number;
+  overCount: number;
+  underCount: number;
+  skippedCount: number;
+  slides: SlideTimingDetail[];
+  redistributionSummary: string;
+  verdict: string;
+}
+
+export type ContextFidelityLevel = 'adequate' | 'weak' | 'missing';
+
+export interface ContextFidelityItem {
+  id: string;
+  category: string;
+  requirement: string;
+  whatWasProvided?: string;
+  level: ContextFidelityLevel;
+  suggestion: string;
+}
+
+export interface ContextFidelityData {
+  overallScore: number;
+  missingCount: number;
+  weakCount: number;
+  items: ContextFidelityItem[];
+  verdict: string;
+}
+
+export type GapLevel = 'none' | 'minor' | 'major';
+
+export interface SlideAlignmentRecord {
+  slideNumber: number;
+  slideTitle: string;
+  alignmentScore: number;
+  gap: GapLevel;
+  slideKeyPoint: string;
+  whatWasSaid: string;
+  gapReason?: string;
+}
+
+export interface SlideAlignmentData {
+  overallScore: number;
+  majorGapCount: number;
+  records: SlideAlignmentRecord[];
+  verdict: string;
+}
+
+export type FlowStatus = 'delivered' | 'partial' | 'missed';
+
+export interface FlowSection {
+  id: string;
+  label: string;
+  keyMessage: string;
+  status: FlowStatus;
+  coverage: number;
+  speechEvidence?: string;
+}
+
+export interface KeyDeliveryData {
+  overallRate: number;
+  verdict: string;
+  sections: FlowSection[];
+}
+
+export interface QAAnswer {
+  qaId: string;
+  question: string;
+  userAnswer: string;
+  answeredVia: 'text' | 'voice';
+  checkpoint: string;
+}
+
+export type QAReadinessStatus = 'strong' | 'partial' | 'weak';
+
+export interface QAReadinessItem {
+  qaId: string;
+  question: string;
+  userAnswer: string;
+  answeredVia: 'text' | 'voice';
+  checkpoint: string;
+  expectedQuestionType: string;
+  slideRef: string;
+  score: number;
+  status: QAReadinessStatus;
+  coveredCriteria: string[];
+  missingCriteria: string[];
+  suggestion: string;
+}
+
+export interface QAReadinessData {
+  overallScore: number;
+  answeredCount: number;
+  expectedCount: number;
+  strongCount: number;
+  partialCount: number;
+  weakCount: number;
+  items: QAReadinessItem[];
+  verdict: string;
+}
+
 export interface AnalysisReport {
   totalPoints: number;
   coveredPoints: number;
@@ -88,4 +205,5 @@ export interface AnalysisReport {
   }[];
   suggestions: string[];
   criticalMisses: SlidePoint[];
+  qaAnswers?: QAAnswer[];
 }

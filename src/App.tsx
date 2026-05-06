@@ -14,7 +14,7 @@ import { SpeechPanel } from './components/SpeechPanel';
 import { AnalysisReport } from './components/AnalysisReport';
 import { SlideUploader } from './components/SlideUploader';
 import { ContextForm } from './components/ContextForm';
-import { QAInline } from './components/QAPanel';
+import { QAModal } from './components/QAModal';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import { useSSAAnalysis } from './hooks/useSSAAnalysis';
 import { enrichSlides } from './lib/enrichSlides';
@@ -22,7 +22,7 @@ import {
   clearPresentationDraft,
   savePresentationDraft,
 } from './lib/presentationStorage';
-import type { Slide, AnalysisReport as ReportType, PresentationContext, SlideTimingRecord } from './types';
+import type { Slide, AnalysisReport as ReportType, PresentationContext, SlideTimingRecord, QAAnswer } from './types';
 
 const DEFAULT_CONTEXT: PresentationContext = {
   type: '투자 피치',
@@ -49,6 +49,7 @@ function App() {
   const [report, setReport] = useState<ReportType | null>(null);
   const [timingRecords, setTimingRecords] = useState<SlideTimingRecord[]>([]);
   const [workflowStep, setWorkflowStep] = useState<WorkflowStep>('upload');
+  const [isQAModalOpen, setIsQAModalOpen] = useState(false);
   const [context, setContext] = useState<PresentationContext>(DEFAULT_CONTEXT);
   const [isEnriching, setIsEnriching] = useState(false);
   const selectedSlideIndex = slides.length > 0
@@ -127,9 +128,17 @@ function App() {
     }
   }, [clearSegments, context]);
 
-  const handleShowReport = useCallback(async () => {
-    const newReport = generateReport();
+  const handleOpenQAModal = useCallback(() => {
+    setIsQAModalOpen(true);
+  }, []);
+
+  const handleShowReport = useCallback(async (qaAnswers?: QAAnswer[]) => {
+    const base = generateReport();
+    const newReport: ReportType = qaAnswers && qaAnswers.length > 0
+      ? { ...base, qaAnswers }
+      : base;
     setReport(newReport);
+    setIsQAModalOpen(false);
     setWorkflowStep('report');
 
     if (segments.length > 0) {
@@ -165,7 +174,7 @@ function App() {
     }
 
     if (step === 'report' && canShowReport) {
-      handleShowReport();
+      handleOpenQAModal();
     }
   }, [canReview, canShowReport, handleRestart, handleShowReport]);
 
@@ -217,16 +226,13 @@ function App() {
   const renderContent = () => {
     if (workflowStep === 'report' && report) {
       return (
-        <div className="space-y-6">
-          <QAInline />
-          <AnalysisReport
-            report={report}
-            timingRecords={timingRecords}
-            isEvaluating={isEvaluating}
-            onClose={() => setWorkflowStep('practice')}
-            onRestart={handleRestart}
-          />
-        </div>
+        <AnalysisReport
+          report={report}
+          timingRecords={timingRecords}
+          isEvaluating={isEvaluating}
+          onClose={() => setWorkflowStep('practice')}
+          onRestart={handleRestart}
+        />
       );
     }
 
@@ -303,7 +309,7 @@ function App() {
             interimText={interimText}
             onStart={startListening}
             onStop={stopListening}
-            onFinish={handleShowReport}
+            onFinish={handleOpenQAModal}
             isSupported={isSupported}
             error={error}
             alignments={alignments}
@@ -404,6 +410,12 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gh-bg">
+      {isQAModalOpen && (
+        <QAModal
+          onConfirm={handleShowReport}
+          onClose={() => setIsQAModalOpen(false)}
+        />
+      )}
       <Header />
 
       <div className="mx-auto max-w-7xl px-4 py-6">

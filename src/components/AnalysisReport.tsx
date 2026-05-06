@@ -1,18 +1,23 @@
-import { 
-  BarChart3, 
-  CheckCircle2, 
-  XCircle, 
-  AlertTriangle, 
+import {
+  BarChart3,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
   TrendingUp,
   Lightbulb,
   ChevronDown,
   ChevronUp,
   Target,
   Award,
-  X
+  X,
 } from 'lucide-react';
 import { useState } from 'react';
 import type { AnalysisReport as ReportType, SlideTimingRecord, SolarVerdict } from '../types';
+import { KeyDeliverySection } from './KeyDeliverySection';
+import { SlideAlignmentSection } from './SlideAlignmentSection';
+import { ContextFidelitySection } from './ContextFidelitySection';
+import { TimeConsistencySection } from './TimeConsistencySection';
+import { QAReadinessSection } from './QAReadinessSection';
 
 interface AnalysisReportProps {
   report: ReportType;
@@ -79,6 +84,12 @@ export function AnalysisReport({ report, timingRecords = [], isEvaluating = fals
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <KeyDeliverySection />
+          <SlideAlignmentSection />
+          <ContextFidelitySection />
+          <TimeConsistencySection />
+          <QAReadinessSection qaAnswers={report.qaAnswers} />
+
           <div className={`flex items-center gap-6 p-6 rounded-xl border-2 ${gradeInfo.bg} ${gradeInfo.border}`}>
             <div className="flex flex-col items-center">
               <div className={`w-24 h-24 rounded-full border-4 ${gradeInfo.border} ${gradeInfo.bg} flex items-center justify-center`}>
@@ -281,7 +292,7 @@ export function AnalysisReport({ report, timingRecords = [], isEvaluating = fals
                             </div>
                             <ul className="space-y-1 pl-6">
                               {slide.covered.map(point => {
-                                const verdict = (point as any).solarVerdict as SolarVerdict | undefined;
+                                const verdict = (point as typeof point & { solarVerdict?: SolarVerdict }).solarVerdict;
                                 const vInfo = verdict ? VERDICT_LABELS[verdict] : undefined;
                                 return (
                                   <li key={point.id} className="text-sm text-gh-text-muted list-disc">
